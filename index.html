@@ -166,6 +166,8 @@ fieldset.group legend{font-family:var(--serif);font-size:15px;padding:0 6px;colo
 .q .n{font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
 .q .p{font-size:15px}
 .opt{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--field);font-size:14px;color:var(--ink)}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--soft);font-weight:500}
+button.opt{cursor:pointer;font:inherit}
 .opt.right{border-color:var(--ok);background:var(--ok-bg)} .opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
 .gapline{font-size:15px;line-height:2.1}
 .gapline input{display:inline-block;width:auto;min-width:90px;padding:3px 8px;margin:0 3px}
@@ -310,7 +312,9 @@ const PROD = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase);
 const sb = PROD ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
 let remoteVersion = 0, saveTimer = 0, saveState = "ok";
 function starterDB() { const s = seed(); return { alunos: [], atividades: s.atividades, envios: [], eventos: [], diario: [], mensalidades: [], ajustes: Object.assign({}, s.ajustes, { pix_chave: "", semanas: {} }) }; }
-function load() { if (PROD) return; try { DB = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { DB = null; } if (!DB || !DB.ajustes) { DB = seed(); save(); } }
+function load() { if (PROD) return; try { DB = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { DB = null; } if (!DB || !DB.ajustes) { DB = seed(); save(); } if (migrate()) save(); }
+function newPin() { let p; do { p = String(Math.floor(1000 + Math.random() * 9000)); } while (DB && DB.alunos.some(a => a.pin === p)); return p; }
+function migrate() { let ch = false; DB.novidades = DB.novidades || []; DB.alunos.forEach(a => { if (!a.pin) { a.pin = newPin(); ch = true; } }); return ch; }
 function save() {
   if (!PROD) { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) {} return; }
   setSaveState("saving"); clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 700);
@@ -321,6 +325,7 @@ async function loadRemote() {
   if (data) { DB = data.dados; remoteVersion = data.versao; }
   else { DB = starterDB(); const ins = await sb.from("painel").insert({ dados: DB, versao: 1 }).select("versao").single(); if (ins.error) throw ins.error; remoteVersion = 1; }
   DB.ajustes.semanas = DB.ajustes.semanas || {};
+  if (migrate()) save();
 }
 async function pushRemote() {
   const { data, error } = await sb.from("painel").update({ dados: DB, versao: remoteVersion + 1, updated_at: new Date().toISOString() }).eq("versao", remoteVersion).select("versao");
@@ -465,7 +470,7 @@ function startOfWeek(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.ge
 const app = $("#app");
 let logged = false; try { logged = sessionStorage.getItem("fabi_logged") === "1"; } catch (e) {}
 function go(tab, view = null) { UI.tab = tab; UI.view = view; render(); window.scrollTo(0, 0); }
-function render() { if (!logged) return vLogin(); closeSheet(true);
+function render() { if (PORTAL || P.demoBack) return P.data ? renderPortal() : vPortalLogin(); if (!logged) return vLogin(); closeSheet(true);
   const V = UI.view ? { aluno: vAluno, editor: vEditor, corrigir: vCorrigir, form: vAlunoForm }[UI.view.name] : { agenda: vAgenda, alunos: vAlunos, financeiro: vFinanceiro, atividades: vAtividades, correcoes: vCorrecoes, documentos: vDocumentos, ajustes: vAjustes }[UI.tab];
   V(); translate(document.body); }
 
@@ -475,7 +480,7 @@ function shell(inner) {
   const tabs = [["agenda","Agenda"],["alunos", nAlert ? `Alunos ⚠${nAlert}` : "Alunos"],["financeiro","Financeiro"],["atividades","Atividades"],["correcoes", `Correções${nCorr ? ` (${nCorr})` : ""}`],["documentos","Documentos"],["ajustes","Ajustes"]];
   app.innerHTML = `
     <header class="top"><div><p class="eyebrow">Fabiane Colaço · English Teacher</p><h1>Painel da professora</h1></div>
-      <div class="btns">${PROD ? `<span class="small muted" id="saveState" role="status" aria-live="polite"></span>` : ""}<span class="small muted">${DB.alunos.filter(a => a.ativo !== false).length} alunos ativos</span>${togglesHtml()}<button class="btn sm" id="logout">Sair</button></div></header>
+      <div class="btns">${PROD ? `<span class="small muted" id="saveState" role="status" aria-live="polite"></span>` : ""}<span class="small muted">${DB.alunos.filter(a => a.ativo !== false).length} alunos ativos</span>${bellHtml()}${togglesHtml()}<button class="btn sm" id="logout">Sair</button></div></header>
     ${PROD ? "" : `<p class="small" style="margin:0;padding:8px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn)">Demonstração com alunos de exemplo. Os dados ficam só neste navegador.</p>`}
     <nav class="tabs" role="tablist">${tabs.map(([t, l]) => `<button class="tab" role="tab" data-tab="${t}" aria-selected="${UI.tab === t}">${l}</button>`).join("")}</nav>
     ${inner}`;
@@ -483,6 +488,7 @@ function shell(inner) {
   bindToggles();
   $("#logout").addEventListener("click", async () => { if (PROD) await sb.auth.signOut(); logged = false; try { sessionStorage.removeItem("fabi_logged"); } catch (e) {} render(); });
   if (PROD) setSaveState(saveState);
+  bindBell();
 }
 
 // ============================================================ painel lateral
@@ -513,7 +519,7 @@ function vLogin() {
     say("Entrando…");
     const { error } = await sb.auth.signInWithPassword({ email: $("#lEmail").value.trim(), password: $("#lPass").value });
     if (error) { say(/invalid/i.test(error.message) ? "E-mail ou senha incorretos." : "Não consegui entrar agora. Confira a internet e tente de novo."); return; }
-    try { await loadRemote(); logged = true; render(); } catch (err) { say("Entrei, mas não consegui carregar os dados. Recarregue a página."); }
+    try { await loadRemote(); logged = true; render(); pullInbox(); } catch (err) { say("Entrei, mas não consegui carregar os dados. Recarregue a página."); }
   });
 }
 
@@ -654,6 +660,7 @@ function vAlunoForm() {
       <fieldset class="group"><legend>Link do aluno</legend>
         <label>Final do link <span class="hint">(letras minúsculas, números e hífen)</span><input id="fSlug" value="${esc(ed ? ed.token : "")}" placeholder="Ex.: leticia" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
         <p class="hint" style="margin:0;word-break:break-all" id="slugPrev"></p>
+        <label>PIN do aluno <span class="hint">(4 números · o aluno digita para entrar)</span><span class="btns" style="gap:6px;flex-wrap:nowrap"><input id="fPin" value="${esc(ed && ed.pin ? ed.pin : newPin())}" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" style="width:110px;letter-spacing:.3em" data-notr><button type="button" class="btn sm" id="pinNew">Gerar outro</button></span></label>
       </fieldset>
       <fieldset class="group"><legend>Contato</legend>
         <div class="row"><label>Telefone / WhatsApp 1 <span class="hint">(opcional)</span><input id="fTel1" inputmode="tel" value="${esc(a.tel1)}" placeholder="+55 41 9…"></label>
@@ -724,6 +731,8 @@ function vAlunoForm() {
     let tok = window.__slugCheck ? window.__slugCheck() : "";
     if (!tok) { $("#sStatus").textContent = "Escolha outro final para o link do aluno: esse já está em uso."; translate($("#sStatus")); $("#fSlug").focus(); return; }
     data.token = tok;
+    const pin = $("#fPin").value.trim(); if (!/^\d{4}$/.test(pin)) { $("#sStatus").textContent = "O PIN precisa ter 4 números."; translate($("#sStatus")); $("#fPin").focus(); return; }
+    data.pin = pin;
     if (ed) Object.assign(ed, data);
     else DB.alunos.push(Object.assign({ id: uid(), tema: { cor: "#B88378", fonte: "Poppins", foto: "" } }, data));
     save(); go("alunos", { name: "aluno", id: ed ? ed.id : DB.alunos[DB.alunos.length - 1].id });
@@ -736,6 +745,7 @@ function vAlunoForm() {
   $("#fSlug").addEventListener("input", () => { slugTouched = true; const c = slugify($("#fSlug").value); if (c !== $("#fSlug").value) $("#fSlug").value = c; slugCheck(); });
   ["fNome", "fApelido"].forEach(id => $("#" + id).addEventListener("input", () => { if (!slugTouched) slugCheck(); }));
   slugCheck(); window.__slugCheck = slugCheck;
+  $("#pinNew").addEventListener("click", () => { $("#fPin").value = newPin(); });
   $("#fNome").focus();
 }
 function studentLink(tok) { const base = location.origin && location.origin !== "null" ? location.origin + location.pathname.replace(/index\.html$/, "") : "https://fabianecolaco.github.io/painel/"; return `${/claude\.ai|claudeusercontent|localhost|127\.0\.0\.1/.test(base) ? "https://fabianecolaco.github.io/painel/" : base.replace(/\/?$/, "/")}aluno/#${tok}`; }
@@ -755,10 +765,10 @@ function vAluno() {
         <div class="btns" style="gap:6px"><span class="badge lvl">${a.nivel}</span>${a.ativo === false ? `<span class="badge bad">Inativo</span>` : ""}<span class="badge">${esc(a.cidade || "Cidade não informada")}</span>
           ${a.aulas.map(x => `<span class="badge">${WD[x.dia]} ${x.hora} · ${x.dur}min</span>`).join("")}</div>
         <div class="small muted">${[a.tel1, a.tel2].filter(Boolean).map(esc).join(" · ") || "Sem telefone"}${a.resp_nome ? ` · Resp.: ${esc(a.resp_nome)} ${esc(a.resp_tel)}` : ""}</div>
-        <div class="small muted" style="word-break:break-all">Link do aluno: <span data-notr>${esc(link)}</span></div>
+        <div class="small muted" style="word-break:break-all">Link do aluno: <span data-notr>${esc(link)}</span> · PIN <b data-notr>${esc(a.pin || "")}</b></div>
         <div class="small muted">Chegou por: ${esc(a.origem)}${a.indicado_por ? ` (${esc(a.indicado_por)})` : ""} · aluno desde ${fmtDate(a.inicio)}</div>
       </div>
-      <div class="btns"><button class="btn sm" id="edit">Editar dados</button><button class="btn sm" id="copyLink">Copiar link do aluno</button></div>
+      <div class="btns"><button class="btn sm" id="edit">Editar dados</button><button class="btn sm" id="copyLink">Copiar link do aluno</button><button class="btn sm" id="seePortal">Ver página do aluno</button></div>
     </section>
     <div class="kpis">
       <div class="kpi"><div class="k">Mensalidade ${MONTHS[UI.calM].toLowerCase()}</div><div class="v">${money(b.valor)}</div><div class="hint">${a.cobranca.modo === "mensal" ? "valor fixo mensal" : `${b.encontros} encontros × ${money(perEncontro(a))}`}</div></div>
@@ -805,6 +815,7 @@ function vAluno() {
   const reload = () => go("alunos", { name: "aluno", id: a.id });
   $("#back").addEventListener("click", () => go("alunos"));
   $("#edit").addEventListener("click", () => go("alunos", { name: "form", id: a.id }));
+  $("#seePortal").addEventListener("click", () => PROD ? window.open(link, "_blank", "noopener") : openPortalPreview(a));
   $("#copyLink").addEventListener("click", e => navigator.clipboard.writeText(link).then(() => e.target.textContent = "Link copiado!").catch(() => e.target.textContent = link));
   $("#cPrev").addEventListener("click", () => { UI.calM--; if (UI.calM < 0) { UI.calM = 11; UI.calY--; } reload(); });
   $("#cNext").addEventListener("click", () => { UI.calM++; if (UI.calM > 11) { UI.calM = 0; UI.calY++; } reload(); });
@@ -1260,7 +1271,7 @@ async function downloadDoc(f, statusSel = "#docStatus") {
 
 // ============================================================ IDIOMA E TEMA
 const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
-let LANG = store.get("fabi_lang", "pt");
+let LANG = store.get("fabi_lang", window.PORTAL_MODE ? "en" : "pt");
 let MODE = store.get("fabi_mode", matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 const PT_M = MONTHS.slice(), PT_WD = WD.slice(), PT_WDF = WD_FULL.slice();
 const EN_M = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1275,7 +1286,7 @@ function bindToggles() {
   $$("[data-lang]").forEach(b => b.addEventListener("click", () => { LANG = b.dataset.lang; store.set("fabi_lang", LANG); applyLang(); render(); }));
   $$("[data-setmode]").forEach(b => b.addEventListener("click", () => { MODE = b.dataset.setmode; store.set("fabi_mode", MODE); applyMode(); render(); }));
 }
-const I18N = {"Painel da professora": "Teacher's dashboard", "Sair": "Log out", "Agenda": "Schedule", "Alunos": "Students", "Financeiro": "Payments", "Atividades": "Activities", "Correções": "Grading", "Documentos": "Documents", "Ajustes": "Settings", "Idioma": "Language", "Tema": "Theme", "☀ Claro": "☀ Light", "☾ Escuro": "☾ Dark", "Demonstração com alunos de exemplo. Os dados ficam só neste navegador.": "Demo with sample students. Data stays in this browser only.", "Fechar": "Close", "Voltar": "Back", "‹ Voltar": "‹ Back", "Cancelar": "Cancel", "Salvar": "Save", "Salvo.": "Saved.", "Confirmar?": "Confirm?", "Remover": "Remove", "Apagar": "Delete", "Entrar no painel": "Sign in", "E-mail": "Email", "Senha": "Password", "Entrar": "Sign in", "Senha incorreta. Tente de novo.": "Wrong password. Try again.", "No site de verdade, a senha é a que ela criar, e só a conta dela entra.": "On the real site, it's the password she creates, and only her account can sign in.", "Demonstração: a senha é": "Demo: the password is", ". No site de verdade, a senha é a que ela criar, e só a conta dela entra.": ". On the real site, it's the password she creates, and only her account can sign in.", "> Instrução ou título de parte\n\n? Pergunta de marcar X\n* resposta certa\n- resposta errada\n\n_ Complete: I [am] from Brazil.\n_ Mais de uma resposta: She [lives|is living] here.\n\nW: Proposta de escrita | 40": "> Instruction or section title\n\n? Multiple-choice question\n* correct answer\n- wrong answer\n\n_ Fill in: I [am] from Brazil.\n_ More than one answer: She [lives|is living] here.\n\nW: Writing prompt | 40", "Semana anterior": "Previous week", "Próxima semana": "Next week", "Hoje": "Today", "Mostrar horários livres": "Show free time", "Aula": "Class", "Reposição": "Make-up", "Extra": "Extra", "Falta": "Absence", "Cancelada": "Cancelled", "Sem aulas": "No classes", "Livre": "Free", "Disponibilidade padrão": "Default availability", "Disponibilidade só desta semana": "Custom availability this week", "Editar disponibilidade desta semana": "Edit this week's availability", "Toque numa aula para marcar falta, cancelar ou remarcar. Os horários livres vêm da sua disponibilidade em": "Tap a class to mark an absence, cancel or reschedule. Free time comes from your availability in", "Disponibilidade desta semana": "This week's availability", "Mudanças aqui valem só para esta semana. A próxima continua com o seu padrão (aba Ajustes).": "Changes here apply to this week only. Next week goes back to your default (Settings tab).", "+ Faixa": "+ Time range", "às": "to", "Início": "Start", "Fim": "End", "Salvar só para esta semana": "Save for this week only", "Voltar ao padrão": "Back to default", "O que aconteceu?": "What happened?", "Observação (opcional)": "Note (optional)", "Ex.: avisou que estava doente": "E.g. said they were sick", "✕ Marcar falta": "✕ Mark absence", "Cancelar aula (eu cancelei / feriado)": "Cancel class (I cancelled / holiday)", "Falta do aluno continua na cobrança do mês. Aula cancelada por você sai da cobrança.": "Student absences are still charged. Classes you cancel are not charged.", "Desfazer (voltar para aula normal)": "Undo (back to regular class)", "Apagar reposição": "Delete make-up class", "Apagar aula extra": "Delete extra class", "Abrir perfil do aluno": "Open student profile", "Aula normal": "Regular class", "Falta do aluno": "Student absence", "Cancelada pela professora": "Cancelled by teacher", "Aula extra": "Extra class", "Reposição marcada": "Make-up class booked", "Remarcar (opcional)": "Reschedule (optional)", "Dia": "Day", "Duração (min)": "Length (min)", "Horários livres nesse dia": "Free time on this day", "Ou digite o horário": "Or type the time", "Marcar reposição": "Book make-up class", "Nenhum horário livre nesse dia.": "No free time on this day.", "Escolha um horário livre ou digite um.": "Pick a free time or type one.", "Escolha um horário.": "Pick a time.", "Domingo": "Sunday", "Segunda": "Monday", "Terça": "Tuesday", "Quarta": "Wednesday", "Quinta": "Thursday", "Sexta": "Friday", "Sábado": "Saturday", "+ Novo aluno": "+ New student", "Buscar aluno…": "Search student…", "Buscar aluno": "Search student", "Filtrar por nível": "Filter by level", "Nenhum aluno encontrado.": "No students found.", "Sem horário": "No schedule", "Inativo": "Inactive", "‹ Todos os alunos": "‹ All students", "‹ Alunos": "‹ Students", "‹ Voltar ao perfil": "‹ Back to profile", "Novo aluno": "New student", "Editar aluno": "Edit student", "Quem é": "About", "Nome completo *": "Full name *", "Nome completo": "Full name", "Como chamar (no card e no portal)": "Nickname (card and portal)", "Ex.: Leti": "E.g. Leti", "Nível": "Level", "Cidade / país": "City / country", "Ex.: Carlópolis (PR)": "E.g. Carlópolis (PR)", "Início das aulas": "Start date", "Aluno ativo (aparece na agenda e no financeiro)": "Active student (shows in schedule and payments)", "Contato": "Contact", "Telefone / WhatsApp 1": "Phone / WhatsApp 1", "(opcional)": "(optional)", "Telefone 2": "Phone 2", "Responsável": "Guardian", "(se for menor de idade)": "(if under 18)", "Nome e parentesco": "Name and relationship", "Telefone do responsável": "Guardian's phone", "Como chegou até você": "How they found you", "Origem": "Source", "Indicado por": "Referred by", "(se foi indicação)": "(if referred)", "Indicação": "Referral", "Ex-aluno": "Former student", "Outro": "Other", "Aulas na semana": "Weekly classes", "Horário": "Time", "+ Adicionar horário": "+ Add time slot", "Nenhum horário. Adicione os dias e horários fixos do aluno.": "No time slots. Add the student's regular days and times.", "Cobrança": "Billing", "Modo de cobrança": "Billing mode", "Por aula": "Per class", "Valor fixo mensal": "Fixed monthly fee", "Aulas cobradas por semana": "Classes charged per week", "Valor por aula (R$)": "Price per class (R$)", "Valor mensal (R$)": "Monthly fee (R$)", "Card da mensalidade": "Payment card", "Saudação": "Greeting", "Cor": "Color", "Rosé": "Rosé", "Amarelo": "Yellow", "Mostrar Pix": "Show Pix", "Observação privada": "Private note", "Objetivos, dificuldades, combinados… (o aluno não vê)": "Goals, difficulties, agreements… (students don't see this)", "Cadastrar aluno": "Add student", "Salvar alterações": "Save changes", "Digite o nome do aluno.": "Type the student's name.", "Editar dados": "Edit details", "Copiar link do aluno": "Copy student link", "Link copiado!": "Link copied!", "Sem telefone": "No phone", "Cidade não informada": "No city", "Faltas no mês": "Absences this month", "Acertos": "Score", "Calendário de aulas": "Class calendar", "Mês anterior": "Previous month", "Próximo mês": "Next month", "+ Aula extra / reposição avulsa": "+ Extra / make-up class", "Toque numa aula do calendário para marcar falta ou remarcar.": "Tap a class in the calendar to mark an absence or reschedule.", "Aula extra ou reposição": "Extra or make-up class", "Reposição (não cobra)": "Make-up (not charged)", "Aula extra (cobra)": "Extra class (charged)", "Marcar": "Book", "Enviar atividade…": "Send activity…", "Escolher atividade": "Choose activity", "Enviar": "Send", "Escolha uma atividade.": "Choose an activity.", "Nenhuma atividade enviada.": "No activities sent.", "Pendente": "Pending", "Escrita p/ corrigir": "Writing to grade", "Concluída": "Done", "Corrigir": "Grade", "Ver": "View", "Cancelar envio": "Cancel", "1 reposição marcada": "1 make-up class booked", "Observação privada · o aluno não vê": "Private note · students don't see this", "Salva sozinha enquanto você digita.": "Saves automatically as you type.", "Diário de aula": "Class diary", "Data": "Date", "Assunto da aula": "Class topic", "Ex.: Past simple": "E.g. Past simple", "Anotações": "Notes", "O que foi conversado, dificuldades, vocabulário novo…": "What you talked about, difficulties, new vocabulary…", "Mostrar o assunto para o aluno": "Show the topic to the student", "O diário é só seu. As anotações nunca aparecem para o aluno.": "The diary is yours only. Notes never show to students.", "Salvar anotação": "Save entry", "Nenhuma aula registrada.": "No classes logged.", "Aluno vê o assunto": "Student sees topic", "Privado": "Private", "valor fixo mensal": "fixed monthly fee", "Gerar mensalidades": "Create monthly payments", "Mês já gerado": "Month already created", "Previsto": "Expected", "Recebido": "Received", "pelo calendário dos alunos ativos": "from active students' calendars", "Criar imagem": "Create image", "Pago": "Paid", "Imagem de": "Image for", "Datas das aulas (dias do mês)": "Class dates (days of the month)", "Total (R$)": "Total (R$)", "Baixar imagem": "Download image", "Compartilhar": "Share", "Copiar mensagem": "Copy message", "Se o botão não baixar, toque e segure (ou clique com o botão direito) na imagem e salve.": "If the button doesn't download, tap and hold (or right-click) the image to save it.", "Prévia da imagem da mensalidade": "Payment image preview", "Imagem salva.": "Image saved.", "Imagem baixada.": "Image downloaded.", "Mensagem copiada.": "Message copied.", "Download cancelado ou indisponível. Toque e segure na imagem para salvar.": "Download cancelled or unavailable. Tap and hold the image to save it.", "+ Nova atividade": "+ New activity", "Copie do Word, cole no editor e marque as respostas com os símbolos.": "Copy from Word, paste into the editor and mark the answers with the symbols.", "Editar": "Edit", "‹ Atividades": "‹ Activities", "Nova atividade": "New activity", "Editar atividade": "Edit activity", "Título": "Title", "Ex.: Past simple · My weekend": "E.g. Past simple · My weekend", "Tipo": "Type", "Marcar X": "Multiple choice", "Completar": "Fill in", "Escrita": "Writing", "Híbrida": "Mixed", "Música": "Music", "Link do YouTube": "YouTube link", "Letra da música": "Song lyrics", "(cole a letra e coloque entre [colchetes] as palavras para completar)": "(paste the lyrics and put the words to fill in [brackets])", "Vocabulário e pronúncia": "Vocabulary & pronunciation", "(palavra = como se fala = tradução)": "(word = how to say it = translation)", "Conteúdo": "Content", "Salvar atividade": "Save activity", "Excluir atividade": "Delete activity", "Como escrever": "How to write", "Contagem": "Count", "O número depois do | é o mínimo de palavras.": "The number after | is the minimum word count.", "A atividade está vazia. Use ? * - _ W: para criar as questões.": "The activity is empty. Use ? * - _ W: to create questions.", "Prévia de como o aluno vê (com as respostas certas marcadas).": "Preview of what the student sees (correct answers marked).", "▶ Ouvir no YouTube": "▶ Listen on YouTube", "Letra para completar": "Lyrics to complete", "Questão": "Question", "Vai para a sua fila de correção.": "Goes to your grading queue.", "Nada para corrigir. Quando um aluno terminar uma atividade com escrita, ela aparece aqui.": "Nothing to grade. When a student finishes an activity with writing, it shows up here.", "Corrigir escrita": "Grade writing", "Correção da escrita": "Writing grade", "Nota da escrita (0 a 10)": "Writing grade (0–10)", "Comentário para o aluno": "Comment for the student", "Concluir correção": "Finish grading", "Atualizar correção": "Update grade", "Esta atividade não tem escrita.": "This activity has no writing.", "(sem resposta)": "(no answer)", "Fundos para Teams e Meet": "Teams & Meet backgrounds", "Papelaria": "Stationery", "Aulas": "Classes", "Identidade da marca": "Brand identity", "Tudo o que foi criado para a marca: fundos de reunião, papelaria, materiais de aula e identidade visual. Os arquivos do Word são editáveis; instale as fontes da marca antes de abrir.": "Everything created for the brand: meeting backgrounds, stationery, class materials and visual identity. Word files are editable; install the brand fonts before opening them.", "Baixar": "Download", "Imagem PNG": "PNG image", "Prévia da primeira página.": "First page preview.", "Arquivo salvo.": "File saved.", "Download iniciado.": "Download started.", "Download cancelado.": "Download cancelled.", "Não consegui baixar agora. Tente de novo.": "Couldn't download right now. Try again.", "Este arquivo fica disponível no site final. Nesta prévia, use o ZIP do kit de marca.": "This file is available on the final site. In this preview, use the brand kit ZIP.", "Fundo círculos · rosé": "Circles background · rosé", "Fundo círculos · amarelo": "Circles background · yellow", "Fundo anéis · rosé": "Rings background · rosé", "Fundo anéis · amarelo": "Rings background · yellow", "Papel timbrado · rosé": "Letterhead · rosé", "Papel timbrado · amarelo": "Letterhead · yellow", "Cartão de visita · rosé": "Business card · rosé", "Cartão de visita · amarelo": "Business card · yellow", "Material de aula · rosé": "Lesson worksheet · rosé", "Material de aula · amarelo": "Lesson worksheet · yellow", "Certificado · rosé": "Certificate · rosé", "Certificado · amarelo": "Certificate · yellow", "Manual de marca": "Brand guide", "Foto de perfil Fc · rosé": "Fc profile picture · rosé", "Foto de perfil Fc · amarelo": "Fc profile picture · yellow", "Fontes da marca": "Brand fonts", "Kit completo (tudo em um ZIP)": "Full kit (everything in one ZIP)", "Importar do Word": "Import from Word", "Buscar atividade…": "Search activity…", "Buscar atividade": "Search activity", "Todos os tipos": "All types", "Todas as pastas": "All folders", "Pasta": "Folder", "Todos": "All", "Nenhuma atividade com esses filtros.": "No activities match these filters.", "Duplicar": "Duplicate", "Sem pasta": "No folder", "Gramática": "Grammar", "Falar de si": "About me", "Músicas": "Songs", "Vocabulário": "Vocabulary", "Listening": "Listening", "Instrução": "Instruction", "Verdadeiro ou falso": "True or false", "Ligar colunas": "Match columns", "Ordenar frase": "Sentence order", "Áudio ou vídeo": "Audio or video", "Pasta / tema": "Folder / topic", "Ex.: Verbos, Viagem": "E.g. Verbs, Travel", "Resumo": "Summary", "Dicas": "Tips", "Adicionar": "Add", "Ver como o aluno": "Preview as student", "Tudo certo para salvar.": "Ready to save.", "Dê um título para a atividade.": "Give the activity a title.", "Corrija os itens marcados no resumo antes de salvar.": "Fix the items flagged in the summary before saving.", "Adicione pelo menos uma questão.": "Add at least one question.", "Adicione a primeira questão abaixo.": "Add the first question below.", "Subir": "Move up", "Descer": "Move down", "Excluir": "Delete", "Texto da instrução": "Instruction text", "Ex.: Part 1 · Choose the correct option.": "E.g. Part 1 · Choose the correct option.", "Pergunta": "Question", "Ex.: She ___ to work by bus.": "E.g. She ___ to work by bus.", "Opções (toque no círculo da resposta certa)": "Options (tap the circle of the correct answer)", "Resposta certa": "Correct answer", "Remover opção": "Remove option", "+ Opção": "+ Option", "Afirmação": "Statement", "Ex.: Carlópolis has a big lake.": "E.g. Carlópolis has a big lake.", "Resposta certa:": "Correct answer:", "Frase": "Sentence", "Ex.: My friends are very nice.": "E.g. My friends are very nice.", "Virar lacuna": "Make it a blank", "Selecione a palavra na frase antes.": "Select the word in the sentence first.", "Respostas:": "Answers:", "Nenhuma lacuna ainda.": "No blanks yet.", "Instrução ": "Instruction", "Pares (esquerda → direita)": "Pairs (left → right)", "Ex.: breakfast": "E.g. breakfast", "Ex.: café da manhã": "E.g. café da manhã", "Remover par": "Remove pair", "+ Par": "+ Pair", "Frase na ordem certa": "Sentence in the correct order", "Ex.: I usually drink coffee in the morning": "E.g. I usually drink coffee in the morning", "O aluno vê assim:": "The student sees:", "Proposta de escrita": "Writing prompt", "Ex.: Write 5 sentences about your weekend.": "E.g. Write 5 sentences about your weekend.", "Mínimo de palavras": "Minimum words", "Link do áudio ou vídeo (YouTube, Drive, Spotify…)": "Audio or video link (YouTube, Drive, Spotify…)", "Legenda ou instrução": "Caption or instruction", "Ex.: Listen and answer the questions below.": "E.g. Listen and answer the questions below.", "▶ Abrir áudio/vídeo": "▶ Open audio/video", "O aluno vê a coluna da direita embaralhada.": "The student sees the right column shuffled.", "(cole a letra; selecione uma palavra e toque em \"Virar lacuna\")": "(paste the lyrics; select a word and tap \"Make it a blank\")", "Envie o arquivo .docx da atividade ou cole o texto. O painel separa perguntas, opções e lacunas, e você revisa antes de salvar.": "Upload the activity's .docx file or paste the text. The dashboard splits questions, options and blanks, and you review before saving.", "Escolher arquivo .docx": "Choose .docx file", "Ou cole o texto aqui": "Or paste the text here", "Transformar em atividade": "Turn into activity", "Como o painel entende": "How the dashboard reads it", "Lendo o arquivo…": "Reading the file…", "Não encontrei questões nesse conteúdo.": "I couldn't find questions in this content.", "Escolha um arquivo ou cole o texto.": "Choose a file or paste the text.", "Não consegui ler esse arquivo. Confira se é .docx (Word) ou cole o texto.": "I couldn't read this file. Check that it's a .docx (Word) file or paste the text.", "Salvando…": "Saving…", "Tudo salvo": "All saved", "Sem conexão: não salvou. Tente de novo.": "Offline: not saved. Try again.", "Atualizado com o que foi salvo em outro aparelho.": "Updated with changes saved on another device.", "Entrando…": "Signing in…", "E-mail ou senha incorretos.": "Wrong email or password.", "Não consegui entrar agora. Confira a internet e tente de novo.": "Couldn't sign in. Check your connection and try again.", "Entrei, mas não consegui carregar os dados. Recarregue a página.": "Signed in, but couldn't load the data. Reload the page.", "Carregando…": "Loading…", "Trocar senha": "Change password", "Nova senha": "New password", "Repita a nova senha": "Repeat the new password", "As senhas não são iguais.": "Passwords don't match.", "Não consegui trocar a senha. Use pelo menos 8 caracteres.": "Couldn't change the password. Use at least 8 characters.", "Senha trocada.": "Password changed.", "⚠ Sem atividades": "⚠ No activities", "Nenhuma atividade enviada ainda": "No activities sent yet", "⚠ Precisam de atividade": "⚠ Need an activity", "Ainda não recebeu nenhuma atividade": "Hasn't received any activity yet", "Enviar atividade": "Send activity", "Última atividade": "Last activity", "Ontem": "Yesterday", "Nunca": "Never", "Link do aluno:": "Student link:", "Link do aluno": "Student link", "Final do link": "Link ending", "(letras minúsculas, números e hífen)": "(lowercase letters, numbers and hyphens)", "Ex.: leticia": "E.g. leticia", "Escreva o final do link.": "Type the link ending.", "· já está em uso por outro aluno": "· already used by another student", "Escolha outro final para o link do aluno: esse já está em uso.": "Choose another link ending: this one is already in use.", "Em andamento": "In progress", "⏳ Atrasada": "⏳ Overdue", "Ver aluno": "View student", "Mostrando as 8 mais antigas.": "Showing the 8 oldest.", "Alertar quando o aluno ficar sem atividade nova por (dias)": "Alert when a student goes without a new activity for (days)", "Vale para todas as semanas. Se uma semana for diferente, edite só ela na Agenda, em \"Editar disponibilidade desta semana\": a semana seguinte volta para este padrão.": "Applies to every week. If one week is different, edit just that week in Schedule (\"Edit this week's availability\"); the following week goes back to this default.", "Tamanho do bloco livre (min)": "Free slot size (min)", "Salvar padrão": "Save default", "Disponibilidade padrão salva.": "Default availability saved.", "Pix e card da mensalidade": "Pix and payment card", "Chave Pix": "Pix key", "Nome do recebedor": "Recipient name", "Cidade no Pix": "City (Pix)", "WhatsApp no rodapé": "WhatsApp in footer", "Mensagem final": "Closing message", "No site de verdade, a Fabi entra com e-mail e senha pelo Supabase e pode trocar a senha aqui. Ninguém mais tem acesso ao painel.": "On the real site, Fabi signs in with email and password (Supabase) and can change her password here. No one else can access the dashboard.", "Demonstração": "Demo", "Apaga tudo que você mudou e volta aos alunos de exemplo.": "Erases your changes and restores the sample students.", "Recomeçar exemplo": "Reset demo", "Apagar alterações? Toque de novo": "Erase changes? Tap again"};
+const I18N = {"Painel da professora": "Teacher's dashboard", "Sair": "Log out", "Agenda": "Schedule", "Alunos": "Students", "Financeiro": "Payments", "Atividades": "Activities", "Correções": "Grading", "Documentos": "Documents", "Ajustes": "Settings", "Idioma": "Language", "Tema": "Theme", "☀ Claro": "☀ Light", "☾ Escuro": "☾ Dark", "Demonstração com alunos de exemplo. Os dados ficam só neste navegador.": "Demo with sample students. Data stays in this browser only.", "Fechar": "Close", "Voltar": "Back", "‹ Voltar": "‹ Back", "Cancelar": "Cancel", "Salvar": "Save", "Salvo.": "Saved.", "Confirmar?": "Confirm?", "Remover": "Remove", "Apagar": "Delete", "Entrar no painel": "Sign in", "E-mail": "Email", "Senha": "Password", "Entrar": "Sign in", "Senha incorreta. Tente de novo.": "Wrong password. Try again.", "No site de verdade, a senha é a que ela criar, e só a conta dela entra.": "On the real site, it's the password she creates, and only her account can sign in.", "Demonstração: a senha é": "Demo: the password is", ". No site de verdade, a senha é a que ela criar, e só a conta dela entra.": ". On the real site, it's the password she creates, and only her account can sign in.", "> Instrução ou título de parte\n\n? Pergunta de marcar X\n* resposta certa\n- resposta errada\n\n_ Complete: I [am] from Brazil.\n_ Mais de uma resposta: She [lives|is living] here.\n\nW: Proposta de escrita | 40": "> Instruction or section title\n\n? Multiple-choice question\n* correct answer\n- wrong answer\n\n_ Fill in: I [am] from Brazil.\n_ More than one answer: She [lives|is living] here.\n\nW: Writing prompt | 40", "Semana anterior": "Previous week", "Próxima semana": "Next week", "Hoje": "Today", "Mostrar horários livres": "Show free time", "Aula": "Class", "Reposição": "Make-up", "Extra": "Extra", "Falta": "Absence", "Cancelada": "Cancelled", "Sem aulas": "No classes", "Livre": "Free", "Disponibilidade padrão": "Default availability", "Disponibilidade só desta semana": "Custom availability this week", "Editar disponibilidade desta semana": "Edit this week's availability", "Toque numa aula para marcar falta, cancelar ou remarcar. Os horários livres vêm da sua disponibilidade em": "Tap a class to mark an absence, cancel or reschedule. Free time comes from your availability in", "Disponibilidade desta semana": "This week's availability", "Mudanças aqui valem só para esta semana. A próxima continua com o seu padrão (aba Ajustes).": "Changes here apply to this week only. Next week goes back to your default (Settings tab).", "+ Faixa": "+ Time range", "às": "to", "Início": "Start", "Fim": "End", "Salvar só para esta semana": "Save for this week only", "Voltar ao padrão": "Back to default", "O que aconteceu?": "What happened?", "Observação (opcional)": "Note (optional)", "Ex.: avisou que estava doente": "E.g. said they were sick", "✕ Marcar falta": "✕ Mark absence", "Cancelar aula (eu cancelei / feriado)": "Cancel class (I cancelled / holiday)", "Falta do aluno continua na cobrança do mês. Aula cancelada por você sai da cobrança.": "Student absences are still charged. Classes you cancel are not charged.", "Desfazer (voltar para aula normal)": "Undo (back to regular class)", "Apagar reposição": "Delete make-up class", "Apagar aula extra": "Delete extra class", "Abrir perfil do aluno": "Open student profile", "Aula normal": "Regular class", "Falta do aluno": "Student absence", "Cancelada pela professora": "Cancelled by teacher", "Aula extra": "Extra class", "Reposição marcada": "Make-up class booked", "Remarcar (opcional)": "Reschedule (optional)", "Dia": "Day", "Duração (min)": "Length (min)", "Horários livres nesse dia": "Free time on this day", "Ou digite o horário": "Or type the time", "Marcar reposição": "Book make-up class", "Nenhum horário livre nesse dia.": "No free time on this day.", "Escolha um horário livre ou digite um.": "Pick a free time or type one.", "Escolha um horário.": "Pick a time.", "Domingo": "Sunday", "Segunda": "Monday", "Terça": "Tuesday", "Quarta": "Wednesday", "Quinta": "Thursday", "Sexta": "Friday", "Sábado": "Saturday", "+ Novo aluno": "+ New student", "Buscar aluno…": "Search student…", "Buscar aluno": "Search student", "Filtrar por nível": "Filter by level", "Nenhum aluno encontrado.": "No students found.", "Sem horário": "No schedule", "Inativo": "Inactive", "‹ Todos os alunos": "‹ All students", "‹ Alunos": "‹ Students", "‹ Voltar ao perfil": "‹ Back to profile", "Novo aluno": "New student", "Editar aluno": "Edit student", "Quem é": "About", "Nome completo *": "Full name *", "Nome completo": "Full name", "Como chamar (no card e no portal)": "Nickname (card and portal)", "Ex.: Leti": "E.g. Leti", "Nível": "Level", "Cidade / país": "City / country", "Ex.: Carlópolis (PR)": "E.g. Carlópolis (PR)", "Início das aulas": "Start date", "Aluno ativo (aparece na agenda e no financeiro)": "Active student (shows in schedule and payments)", "Contato": "Contact", "Telefone / WhatsApp 1": "Phone / WhatsApp 1", "(opcional)": "(optional)", "Telefone 2": "Phone 2", "Responsável": "Guardian", "(se for menor de idade)": "(if under 18)", "Nome e parentesco": "Name and relationship", "Telefone do responsável": "Guardian's phone", "Como chegou até você": "How they found you", "Origem": "Source", "Indicado por": "Referred by", "(se foi indicação)": "(if referred)", "Indicação": "Referral", "Ex-aluno": "Former student", "Outro": "Other", "Aulas na semana": "Weekly classes", "Horário": "Time", "+ Adicionar horário": "+ Add time slot", "Nenhum horário. Adicione os dias e horários fixos do aluno.": "No time slots. Add the student's regular days and times.", "Cobrança": "Billing", "Modo de cobrança": "Billing mode", "Por aula": "Per class", "Valor fixo mensal": "Fixed monthly fee", "Aulas cobradas por semana": "Classes charged per week", "Valor por aula (R$)": "Price per class (R$)", "Valor mensal (R$)": "Monthly fee (R$)", "Card da mensalidade": "Payment card", "Saudação": "Greeting", "Cor": "Color", "Rosé": "Rosé", "Amarelo": "Yellow", "Mostrar Pix": "Show Pix", "Observação privada": "Private note", "Objetivos, dificuldades, combinados… (o aluno não vê)": "Goals, difficulties, agreements… (students don't see this)", "Cadastrar aluno": "Add student", "Salvar alterações": "Save changes", "Digite o nome do aluno.": "Type the student's name.", "Editar dados": "Edit details", "Copiar link do aluno": "Copy student link", "Link copiado!": "Link copied!", "Sem telefone": "No phone", "Cidade não informada": "No city", "Faltas no mês": "Absences this month", "Acertos": "Score", "Calendário de aulas": "Class calendar", "Mês anterior": "Previous month", "Próximo mês": "Next month", "+ Aula extra / reposição avulsa": "+ Extra / make-up class", "Toque numa aula do calendário para marcar falta ou remarcar.": "Tap a class in the calendar to mark an absence or reschedule.", "Aula extra ou reposição": "Extra or make-up class", "Reposição (não cobra)": "Make-up (not charged)", "Aula extra (cobra)": "Extra class (charged)", "Marcar": "Book", "Enviar atividade…": "Send activity…", "Escolher atividade": "Choose activity", "Enviar": "Send", "Escolha uma atividade.": "Choose an activity.", "Nenhuma atividade enviada.": "No activities sent.", "Pendente": "Pending", "Escrita p/ corrigir": "Writing to grade", "Concluída": "Done", "Corrigir": "Grade", "Ver": "View", "Cancelar envio": "Cancel", "1 reposição marcada": "1 make-up class booked", "Observação privada · o aluno não vê": "Private note · students don't see this", "Salva sozinha enquanto você digita.": "Saves automatically as you type.", "Diário de aula": "Class diary", "Data": "Date", "Assunto da aula": "Class topic", "Ex.: Past simple": "E.g. Past simple", "Anotações": "Notes", "O que foi conversado, dificuldades, vocabulário novo…": "What you talked about, difficulties, new vocabulary…", "Mostrar o assunto para o aluno": "Show the topic to the student", "O diário é só seu. As anotações nunca aparecem para o aluno.": "The diary is yours only. Notes never show to students.", "Salvar anotação": "Save entry", "Nenhuma aula registrada.": "No classes logged.", "Aluno vê o assunto": "Student sees topic", "Privado": "Private", "valor fixo mensal": "fixed monthly fee", "Gerar mensalidades": "Create monthly payments", "Mês já gerado": "Month already created", "Previsto": "Expected", "Recebido": "Received", "pelo calendário dos alunos ativos": "from active students' calendars", "Criar imagem": "Create image", "Pago": "Paid", "Imagem de": "Image for", "Datas das aulas (dias do mês)": "Class dates (days of the month)", "Total (R$)": "Total (R$)", "Baixar imagem": "Download image", "Compartilhar": "Share", "Copiar mensagem": "Copy message", "Se o botão não baixar, toque e segure (ou clique com o botão direito) na imagem e salve.": "If the button doesn't download, tap and hold (or right-click) the image to save it.", "Prévia da imagem da mensalidade": "Payment image preview", "Imagem salva.": "Image saved.", "Imagem baixada.": "Image downloaded.", "Mensagem copiada.": "Message copied.", "Download cancelado ou indisponível. Toque e segure na imagem para salvar.": "Download cancelled or unavailable. Tap and hold the image to save it.", "+ Nova atividade": "+ New activity", "Copie do Word, cole no editor e marque as respostas com os símbolos.": "Copy from Word, paste into the editor and mark the answers with the symbols.", "Editar": "Edit", "‹ Atividades": "‹ Activities", "Nova atividade": "New activity", "Editar atividade": "Edit activity", "Título": "Title", "Ex.: Past simple · My weekend": "E.g. Past simple · My weekend", "Tipo": "Type", "Marcar X": "Multiple choice", "Completar": "Fill in", "Escrita": "Writing", "Híbrida": "Mixed", "Música": "Music", "Link do YouTube": "YouTube link", "Letra da música": "Song lyrics", "(cole a letra e coloque entre [colchetes] as palavras para completar)": "(paste the lyrics and put the words to fill in [brackets])", "Vocabulário e pronúncia": "Vocabulary & pronunciation", "(palavra = como se fala = tradução)": "(word = how to say it = translation)", "Conteúdo": "Content", "Salvar atividade": "Save activity", "Excluir atividade": "Delete activity", "Como escrever": "How to write", "Contagem": "Count", "O número depois do | é o mínimo de palavras.": "The number after | is the minimum word count.", "A atividade está vazia. Use ? * - _ W: para criar as questões.": "The activity is empty. Use ? * - _ W: to create questions.", "Prévia de como o aluno vê (com as respostas certas marcadas).": "Preview of what the student sees (correct answers marked).", "▶ Ouvir no YouTube": "▶ Listen on YouTube", "Letra para completar": "Lyrics to complete", "Questão": "Question", "Vai para a sua fila de correção.": "Goes to your grading queue.", "Nada para corrigir. Quando um aluno terminar uma atividade com escrita, ela aparece aqui.": "Nothing to grade. When a student finishes an activity with writing, it shows up here.", "Corrigir escrita": "Grade writing", "Correção da escrita": "Writing grade", "Nota da escrita (0 a 10)": "Writing grade (0–10)", "Comentário para o aluno": "Comment for the student", "Concluir correção": "Finish grading", "Atualizar correção": "Update grade", "Esta atividade não tem escrita.": "This activity has no writing.", "(sem resposta)": "(no answer)", "Fundos para Teams e Meet": "Teams & Meet backgrounds", "Papelaria": "Stationery", "Aulas": "Classes", "Identidade da marca": "Brand identity", "Tudo o que foi criado para a marca: fundos de reunião, papelaria, materiais de aula e identidade visual. Os arquivos do Word são editáveis; instale as fontes da marca antes de abrir.": "Everything created for the brand: meeting backgrounds, stationery, class materials and visual identity. Word files are editable; install the brand fonts before opening them.", "Baixar": "Download", "Imagem PNG": "PNG image", "Prévia da primeira página.": "First page preview.", "Arquivo salvo.": "File saved.", "Download iniciado.": "Download started.", "Download cancelado.": "Download cancelled.", "Não consegui baixar agora. Tente de novo.": "Couldn't download right now. Try again.", "Este arquivo fica disponível no site final. Nesta prévia, use o ZIP do kit de marca.": "This file is available on the final site. In this preview, use the brand kit ZIP.", "Fundo círculos · rosé": "Circles background · rosé", "Fundo círculos · amarelo": "Circles background · yellow", "Fundo anéis · rosé": "Rings background · rosé", "Fundo anéis · amarelo": "Rings background · yellow", "Papel timbrado · rosé": "Letterhead · rosé", "Papel timbrado · amarelo": "Letterhead · yellow", "Cartão de visita · rosé": "Business card · rosé", "Cartão de visita · amarelo": "Business card · yellow", "Material de aula · rosé": "Lesson worksheet · rosé", "Material de aula · amarelo": "Lesson worksheet · yellow", "Certificado · rosé": "Certificate · rosé", "Certificado · amarelo": "Certificate · yellow", "Manual de marca": "Brand guide", "Foto de perfil Fc · rosé": "Fc profile picture · rosé", "Foto de perfil Fc · amarelo": "Fc profile picture · yellow", "Fontes da marca": "Brand fonts", "Kit completo (tudo em um ZIP)": "Full kit (everything in one ZIP)", "Importar do Word": "Import from Word", "Buscar atividade…": "Search activity…", "Buscar atividade": "Search activity", "Todos os tipos": "All types", "Todas as pastas": "All folders", "Pasta": "Folder", "Todos": "All", "Nenhuma atividade com esses filtros.": "No activities match these filters.", "Duplicar": "Duplicate", "Sem pasta": "No folder", "Gramática": "Grammar", "Falar de si": "About me", "Músicas": "Songs", "Vocabulário": "Vocabulary", "Listening": "Listening", "Instrução": "Instruction", "Verdadeiro ou falso": "True or false", "Ligar colunas": "Match columns", "Ordenar frase": "Sentence order", "Áudio ou vídeo": "Audio or video", "Pasta / tema": "Folder / topic", "Ex.: Verbos, Viagem": "E.g. Verbs, Travel", "Resumo": "Summary", "Dicas": "Tips", "Adicionar": "Add", "Ver como o aluno": "Preview as student", "Tudo certo para salvar.": "Ready to save.", "Dê um título para a atividade.": "Give the activity a title.", "Corrija os itens marcados no resumo antes de salvar.": "Fix the items flagged in the summary before saving.", "Adicione pelo menos uma questão.": "Add at least one question.", "Adicione a primeira questão abaixo.": "Add the first question below.", "Subir": "Move up", "Descer": "Move down", "Excluir": "Delete", "Texto da instrução": "Instruction text", "Ex.: Part 1 · Choose the correct option.": "E.g. Part 1 · Choose the correct option.", "Pergunta": "Question", "Ex.: She ___ to work by bus.": "E.g. She ___ to work by bus.", "Opções (toque no círculo da resposta certa)": "Options (tap the circle of the correct answer)", "Resposta certa": "Correct answer", "Remover opção": "Remove option", "+ Opção": "+ Option", "Afirmação": "Statement", "Ex.: Carlópolis has a big lake.": "E.g. Carlópolis has a big lake.", "Resposta certa:": "Correct answer:", "Frase": "Sentence", "Ex.: My friends are very nice.": "E.g. My friends are very nice.", "Virar lacuna": "Make it a blank", "Selecione a palavra na frase antes.": "Select the word in the sentence first.", "Respostas:": "Answers:", "Nenhuma lacuna ainda.": "No blanks yet.", "Instrução ": "Instruction", "Pares (esquerda → direita)": "Pairs (left → right)", "Ex.: breakfast": "E.g. breakfast", "Ex.: café da manhã": "E.g. café da manhã", "Remover par": "Remove pair", "+ Par": "+ Pair", "Frase na ordem certa": "Sentence in the correct order", "Ex.: I usually drink coffee in the morning": "E.g. I usually drink coffee in the morning", "O aluno vê assim:": "The student sees:", "Proposta de escrita": "Writing prompt", "Ex.: Write 5 sentences about your weekend.": "E.g. Write 5 sentences about your weekend.", "Mínimo de palavras": "Minimum words", "Link do áudio ou vídeo (YouTube, Drive, Spotify…)": "Audio or video link (YouTube, Drive, Spotify…)", "Legenda ou instrução": "Caption or instruction", "Ex.: Listen and answer the questions below.": "E.g. Listen and answer the questions below.", "▶ Abrir áudio/vídeo": "▶ Open audio/video", "O aluno vê a coluna da direita embaralhada.": "The student sees the right column shuffled.", "(cole a letra; selecione uma palavra e toque em \"Virar lacuna\")": "(paste the lyrics; select a word and tap \"Make it a blank\")", "Envie o arquivo .docx da atividade ou cole o texto. O painel separa perguntas, opções e lacunas, e você revisa antes de salvar.": "Upload the activity's .docx file or paste the text. The dashboard splits questions, options and blanks, and you review before saving.", "Escolher arquivo .docx": "Choose .docx file", "Ou cole o texto aqui": "Or paste the text here", "Transformar em atividade": "Turn into activity", "Como o painel entende": "How the dashboard reads it", "Lendo o arquivo…": "Reading the file…", "Não encontrei questões nesse conteúdo.": "I couldn't find questions in this content.", "Escolha um arquivo ou cole o texto.": "Choose a file or paste the text.", "Não consegui ler esse arquivo. Confira se é .docx (Word) ou cole o texto.": "I couldn't read this file. Check that it's a .docx (Word) file or paste the text.", "Salvando…": "Saving…", "Tudo salvo": "All saved", "Sem conexão: não salvou. Tente de novo.": "Offline: not saved. Try again.", "Atualizado com o que foi salvo em outro aparelho.": "Updated with changes saved on another device.", "Entrando…": "Signing in…", "E-mail ou senha incorretos.": "Wrong email or password.", "Não consegui entrar agora. Confira a internet e tente de novo.": "Couldn't sign in. Check your connection and try again.", "Entrei, mas não consegui carregar os dados. Recarregue a página.": "Signed in, but couldn't load the data. Reload the page.", "Carregando…": "Loading…", "Trocar senha": "Change password", "Nova senha": "New password", "Repita a nova senha": "Repeat the new password", "As senhas não são iguais.": "Passwords don't match.", "Não consegui trocar a senha. Use pelo menos 8 caracteres.": "Couldn't change the password. Use at least 8 characters.", "Senha trocada.": "Password changed.", "⚠ Sem atividades": "⚠ No activities", "Nenhuma atividade enviada ainda": "No activities sent yet", "⚠ Precisam de atividade": "⚠ Need an activity", "Ainda não recebeu nenhuma atividade": "Hasn't received any activity yet", "Enviar atividade": "Send activity", "Última atividade": "Last activity", "Ontem": "Yesterday", "Nunca": "Never", "Link do aluno:": "Student link:", "Link do aluno": "Student link", "Final do link": "Link ending", "(letras minúsculas, números e hífen)": "(lowercase letters, numbers and hyphens)", "Ex.: leticia": "E.g. leticia", "Escreva o final do link.": "Type the link ending.", "· já está em uso por outro aluno": "· already used by another student", "Escolha outro final para o link do aluno: esse já está em uso.": "Choose another link ending: this one is already in use.", "Em andamento": "In progress", "⏳ Atrasada": "⏳ Overdue", "Ver aluno": "View student", "Mostrando as 8 mais antigas.": "Showing the 8 oldest.", "Alertar quando o aluno ficar sem atividade nova por (dias)": "Alert when a student goes without a new activity for (days)", "Vale para todas as semanas. Se uma semana for diferente, edite só ela na Agenda, em \"Editar disponibilidade desta semana\": a semana seguinte volta para este padrão.": "Applies to every week. If one week is different, edit just that week in Schedule (\"Edit this week's availability\"); the following week goes back to this default.", "Tamanho do bloco livre (min)": "Free slot size (min)", "Salvar padrão": "Save default", "Disponibilidade padrão salva.": "Default availability saved.", "Pix e card da mensalidade": "Pix and payment card", "Chave Pix": "Pix key", "Nome do recebedor": "Recipient name", "Cidade no Pix": "City (Pix)", "WhatsApp no rodapé": "WhatsApp in footer", "Mensagem final": "Closing message", "No site de verdade, a Fabi entra com e-mail e senha pelo Supabase e pode trocar a senha aqui. Ninguém mais tem acesso ao painel.": "On the real site, Fabi signs in with email and password (Supabase) and can change her password here. No one else can access the dashboard.", "Demonstração": "Demo", "Apaga tudo que você mudou e volta aos alunos de exemplo.": "Erases your changes and restores the sample students.", "Recomeçar exemplo": "Reset demo", "Apagar alterações? Toque de novo": "Erase changes? Tap again", "Prévia da página do aluno (como o aluno vê)": "Student page preview (what the student sees)", "‹ Voltar ao painel": "‹ Back to dashboard", "Prévia da página do aluno": "Student page preview", "Olá! Digite seu PIN": "Hi! Enter your PIN", "PIN de 4 números": "4-digit PIN", "Seu PIN foi enviado pela Teacher Fabi. Esqueceu? Peça para ela no WhatsApp.": "Teacher Fabi sent you your PIN. Forgot it? Ask her on WhatsApp.", "Demonstração: o PIN deste aluno é": "Demo: this student's PIN is", "Não consegui abrir agora. Tente de novo.": "Couldn't open right now. Try again.", "Muitas tentativas. Espere 15 minutos e tente de novo.": "Too many tries. Wait 15 minutes and try again.", "Sem conexão. Confira a internet e tente de novo.": "No connection. Check your internet and try again.", "PIN incorreto. Confira com a Teacher Fabi.": "Wrong PIN. Check with Teacher Fabi.", "Link incompleto. Peça o seu link para a Teacher Fabi.": "Incomplete link. Ask Teacher Fabi for your link.", "Personalizar minha página": "Customize my page", "Deixe a página com a sua cara": "Make this page yours", "Outra": "Other", "Fonte": "Font", "Foto": "Photo", "Escolher foto": "Choose photo", "Remover foto": "Remove photo", "Moderna": "Modern", "Elegante": "Elegant", "Arredondada": "Rounded", "Manuscrita": "Handwritten", "Não consegui salvar. Tente de novo.": "Couldn't save. Try again.", "Para fazer": "To do", "Enviada hoje": "Sent today", "Enviada ontem": "Sent yesterday", "Não esqueça!": "Don't forget!", "Começar": "Start", "Tudo em dia! Nenhuma atividade esperando. 🎉": "All caught up! No activities waiting. 🎉", "Minhas notas": "My scores", "Sua evolução (% de acertos por atividade)": "Your progress (% correct per activity)", "Revisar": "Review", "Suas atividades feitas aparecem aqui.": "Your finished activities show up here.", "Minhas aulas": "My classes", "Nenhuma aula nas próximas semanas.": "No classes in the next few weeks.", "Mensalidade": "Monthly fee", "✓ Pago": "✓ Paid", "Pagar com Pix": "Pay with Pix", "Assuntos das aulas": "Class topics", "Pix copia e cola": "Pix copy and paste", "Copiar código Pix": "Copy Pix code", "No app do banco, escolha Pix → Copia e cola, ou aponte a câmera para o QR Code.": "In your bank app, choose Pix → Copy and paste, or point the camera at the QR code.", "A Teacher Fabi ainda não cadastrou a chave Pix.": "Teacher Fabi hasn't added a Pix key yet.", "Card da mensalidade com QR Pix": "Payment card with Pix QR code", "Escolha um horário": "Pick a time", "Qual aula você vai repor?": "Which class are you making up?", "Mostrando só horários livres da Teacher Fabi com pelo menos 48 horas de antecedência.": "Showing only Teacher Fabi's free times at least 48 hours ahead.", "Não há horários livres nas próximas 2 semanas. Fale com a Teacher Fabi pelo WhatsApp.": "No free times in the next 2 weeks. Message Teacher Fabi on WhatsApp.", "Confirmar reposição": "Confirm make-up class", "Esse horário acabou de ser ocupado ou está a menos de 48h. Escolha outro.": "That time was just taken or is less than 48h away. Pick another one.", "Não consegui marcar. Tente de novo.": "Couldn't book it. Try again.", "Escolha…": "Choose…", "Esperando a correção da Teacher Fabi.": "Waiting for Teacher Fabi's feedback.", "Terminar e enviar": "Finish and send", "Lacuna": "Blank", "Lacuna da letra": "Lyrics blank", "Sua frase": "Your sentence", "PIN do aluno": "Student PIN", "(4 números · o aluno digita para entrar)": "(4 digits · the student types it to sign in)", "Gerar outro": "New PIN", "O PIN precisa ter 4 números.": "The PIN must have 4 digits.", "Ver página do aluno": "View student page", "Novidades": "Updates", "Nada novo. Quando um aluno fizer uma atividade ou marcar reposição, aparece aqui.": "Nothing new. When a student finishes an activity or books a make-up class, it shows up here.", "Novidades dos alunos": "Student updates", "Seu PIN mudou. Digite o novo PIN.": "Your PIN changed. Enter the new PIN.", "Essa aula já tem reposição marcada.": "That class already has a make-up booked."};
 const I18N_RX = [
  [/^Alunos ⚠(\d+)$/, "Students ⚠$1"],
  [/^⚠ (\d+) dias sem atividade$/, "⚠ $1 days without activity"],
@@ -1320,6 +1331,12 @@ const I18N_RX = [
  [/^Sem telefone · Resp\.: (.+)$/, "No phone · Guardian: $1"], [/^(.+) · Resp\.: (.+)$/, "$1 · Guardian: $2"],
  [/^Resp\.: /, "Guardian: "],
  [/^(\S+) · enviada (\S+) · feita (\S+)$/, "$1 · sent $2 · done $3"], [/^(\S+) · enviada (\S+)$/, "$1 · sent $2"],
+ [/^(\d+)% de acertos$/, "$1% correct"], [/^(\d+) feitas · (\d+) para fazer$/, "$1 done · $2 to do"], [/^Enviada há (\d+) dias$/, "Sent $1 days ago"],
+ [/^(\d+)\/(\d+) certas · escrita esperando a Teacher Fabi$/, "$1/$2 correct · writing waiting for Teacher Fabi"], [/^(\d+)\/(\d+) certas · escrita ([\d.]+)\/10$/, "$1/$2 correct · writing $3/10"], [/^(\d+)\/(\d+) certas$/, "$1/$2 correct"],
+ [/^Você tem (\d+) aulas? para repor\. Escolha um horário livre com pelo menos 48 horas de antecedência\.$/, "You have $1 class(es) to make up. Pick a free time at least 48 hours ahead."],
+ [/^Aulas: (.+)$/, "Classes: $1"], [/^Mensalidade · (.+)$/, "Monthly fee · $1"], [/^(.+) · Level (\S+)$/, (m, a, b) => (I18N[a] || a) + " · Level " + b], [/^Par de (.+)$/, "Match for $1"],
+ [/^(.+) terminou "(.+)" · (\d+)\/(\d+) · escrita para corrigir$/, "$1 finished \"$2\" · $3/$4 · writing to grade"], [/^(.+) terminou "(.+)" · (\d+)\/(\d+)$/, "$1 finished \"$2\" · $3/$4"],
+ [/^(.+) marcou reposição para (\S+) às (\S+) \(falta de (\S+)\)$/, "$1 booked a make-up class on $2 at $3 (absence on $4)"], [/^Novidades dos alunos: (\d+)$/, "Student updates: $1"], [/^Evolução: (.+)$/, "Progress: $1"],
  [/^Escrita ([\d.]+)\/10$/, "Writing $1/10"],
  [/^Gerar mensalidades \((\d+)\)$/, "Create payments ($1)"],
  [/^(\d+) mensalidades geradas$/, "$1 payments created"],
@@ -1402,12 +1419,387 @@ function vAjustes() {
 }
 const rangeRow = (s, e) => `<div class="rr btns" style="gap:6px"><input type="time" data-s value="${s}" style="width:auto" aria-label="Início"><span class="muted">às</span><input type="time" data-e value="${e}" style="width:auto" aria-label="Fim"><button type="button" class="link danger" data-rmr>Remover</button></div>`;
 
+// ============================================================ PORTAL DO ALUNO
+// Um único "contrato" de dados para a página do aluno. Na demonstração, ele é montado a partir do DB do painel;
+// no site, vem das funções seguras do Supabase (portal_get / portal_post), que exigem o PIN.
+const PORTAL = !!window.PORTAL_MODE;
+const P = { token: "", pin: "", data: null, view: "home", envio: null, demoBack: null };
+const SAFE_ALUNO = a => { const o = JSON.parse(JSON.stringify(a)); ["obs_privada", "pin", "tel1", "tel2", "resp_nome", "resp_tel", "origem", "indicado_por"].forEach(k => delete o[k]); return o; };
+function nowSP() { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+const portalApi = {
+  async load(token, pin) {
+    if (PROD) {
+      const { data, error } = await sb.rpc("portal_get", { p_token: token, p_pin: pin });
+      if (error) return { erro: "rede" };
+      return data;
+    }
+    const a = DB.alunos.find(x => x.token === token);
+    if (!a || a.ativo === false) return { erro: "pin" };
+    if (String(a.pin || "") !== String(pin)) return { erro: "pin" };
+    const env = DB.envios.filter(e => e.aluno === a.id);
+    return { aluno: SAFE_ALUNO(a), envios: JSON.parse(JSON.stringify(env)), atividades: DB.atividades.filter(t => env.some(e => e.atividade === t.id)),
+      mensalidades: DB.mensalidades.filter(m => m.aluno === a.id), eventos: DB.eventos.filter(e => e.aluno === a.id),
+      aulas_publicas: DB.diario.filter(d => d.aluno === a.id && d.mostrar).map(({ notas, ...r }) => r),
+      ocupado: { aulas: DB.alunos.filter(x => x.id !== a.id).map(x => ({ aulas: x.aulas, inicio: x.inicio, ativo: x.ativo, id: "o" + x.id })),
+        eventos: DB.eventos.filter(e => e.aluno !== a.id).map(e => ({ aluno: "o" + e.aluno, data: e.data, hora: e.hora, dur: e.dur, tipo: e.tipo })) },
+      ajustes: (({ pix_chave, pix_nome, pix_cidade, telefone, obrigado, passo, disponibilidade, semanas, antecedencia_h }) => ({ pix_chave, pix_nome, pix_cidade, telefone, obrigado, passo, disponibilidade, semanas, antecedencia_h }))(DB.ajustes),
+      inbox: [], hoje: nowSP() };
+  },
+  async post(tipo, payload) {
+    if (PROD) {
+      const { data, error } = await sb.rpc("portal_post", { p_token: P.token, p_pin: P.pin, p_tipo: tipo, p_payload: payload });
+      if (error) return { erro: "rede" };
+      if (data && data.erro === "repetido") return { ok: true };
+      if (data && (data.erro === "pin" || data.erro === "bloqueado")) { try { localStorage.removeItem("pin_" + P.token); } catch (e) {} P.data = null; P.pin = ""; vPortalLogin(data.erro === "bloqueado" ? "Muitas tentativas. Espere 15 minutos e tente de novo." : "Seu PIN mudou. Digite o novo PIN."); return { erro: "sessao" }; }
+      return data || { ok: true };
+    }
+    const a = DB.alunos.find(x => x.token === P.token);
+    applyInboxItem({ aluno_id: a.id, tipo, payload, criado: new Date().toISOString() }); save();
+    return { ok: true };
+  }
+};
+
+// ---------- aplicar o que o aluno fez (painel)
+function applyInboxItem(it) {
+  const a = aluno(it.aluno_id); if (!a) return;
+  const p = it.payload || {}; DB.novidades = DB.novidades || [];
+  const nov = t => DB.novidades.unshift({ id: uid(), quando: it.criado || new Date().toISOString(), aluno: a.id, texto: t, lida: false });
+  if (it.tipo === "envio") {
+    const e = DB.envios.find(x => x.id === p.envio_id && x.aluno === a.id), t = e && atividade(e.atividade);
+    if (!e || !t || e.status !== "pendente") return;
+    const g = gradeFull(t, p.respostas || {});
+    Object.assign(e, { respostas: p.respostas || {}, acertos: g.ok, total: g.tot, feito: (it.criado || new Date().toISOString()).slice(0, 10), status: hasWriting(t) ? "corrigir" : "feito" });
+    nov(`${a.apelido || a.nome} terminou "${t.titulo}" · ${g.ok}/${g.tot}${hasWriting(t) ? " · escrita para corrigir" : ""}`);
+  }
+  if (it.tipo === "tema") { a.tema = Object.assign({ cor: "#B88378", fonte: "Poppins", foto: "" }, p.tema || {}); }
+  if (it.tipo === "reposicao") {
+    if (DB.eventos.some(e => e.aluno === a.id && e.tipo === "reposicao" && e.ref === p.ref)) return;
+    DB.eventos.push({ id: uid(), aluno: a.id, data: p.data, hora: p.hora, dur: p.dur, tipo: "reposicao", ref: p.ref, obs: "Marcada pelo aluno", pelo_aluno: true });
+    nov(`${a.apelido || a.nome} marcou reposição para ${fmtDate(p.data)} às ${p.hora} (falta de ${fmtDate(p.ref)})`);
+  }
+  DB.novidades = DB.novidades.slice(0, 60);
+}
+function gradeFull(t, resp) {
+  const g = grade(t, resp);
+  if (t.musica && t.musica.letra) { const given = resp.letra || []; g.detail.letra = gapAnswers(t.musica.letra).map((alts, j) => { g.tot++; const r = alts.some(x => norm(x) === norm(given[j])); if (r) g.ok++; return r; }); }
+  return g;
+}
+
+// ---------- agenda do aluno (cálculos no navegador)
+function pOcc(from, to) {
+  const D = P.data, a = D.aluno, ev = D.eventos.concat(D.inbox.filter(i => i.tipo === "reposicao").map(i => ({ ...i.payload, tipo: "reposicao", pendente: true })));
+  const out = [];
+  for (let d = parseYmd(from); ymd(d) <= to; d.setDate(d.getDate() + 1)) {
+    const ds = ymd(d); if (ds < (a.inicio || "0000")) continue;
+    (a.aulas || []).filter(s => s.dia === d.getDay()).forEach(s => { const e = ev.find(x => x.data === ds && x.hora === s.hora && (x.tipo === "falta" || x.tipo === "cancelada"));
+      out.push({ data: ds, hora: s.hora, dur: s.dur, tipo: e ? e.tipo : "normal" }); });
+  }
+  ev.filter(e => (e.tipo === "reposicao" || e.tipo === "extra") && e.data >= from && e.data <= to).forEach(e => out.push({ data: e.data, hora: e.hora, dur: e.dur || 60, tipo: e.tipo, ref: e.ref, pendente: e.pendente }));
+  return out.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+}
+function pBusy(ds) {
+  const D = P.data, dow = parseYmd(ds).getDay(), busy = [];
+  pOcc(ds, ds).filter(o => o.tipo !== "falta" && o.tipo !== "cancelada").forEach(o => busy.push([toMin(o.hora), toMin(o.hora) + o.dur]));
+  D.ocupado.aulas.forEach(x => { if (x.ativo === false || ds < (x.inicio || "0000")) return; (x.aulas || []).filter(s => s.dia === dow).forEach(s => {
+    const off = D.ocupado.eventos.some(e => e.aluno === x.id && e.data === ds && e.hora === s.hora && (e.tipo === "falta" || e.tipo === "cancelada"));
+    if (!off) busy.push([toMin(s.hora), toMin(s.hora) + s.dur]); }); });
+  D.ocupado.eventos.filter(e => e.data === ds && (e.tipo === "reposicao" || e.tipo === "extra")).forEach(e => busy.push([toMin(e.hora), toMin(e.hora) + (e.dur || 60)]));
+  return busy;
+}
+function pFreeStarts(ds, dur) {
+  const D = P.data, A = D.ajustes, wk = ymd(startOfWeek(parseYmd(ds))), dow = parseYmd(ds).getDay();
+  const av = ((A.semanas || {})[wk] ? A.semanas[wk][dow] : (A.disponibilidade || {})[dow]) || [], step = A.passo || 30, busy = pBusy(ds);
+  const minStart = new Date(D.hoje.replace("T", " ").replace(/-/g, "/")); minStart.setHours(minStart.getHours() + (A.antecedencia_h || 48));
+  const out = [];
+  av.forEach(([s, e]) => { for (let m = toMin(s); m + dur <= toMin(e); m += step) {
+    const when = parseYmd(ds); when.setHours(Math.floor(m / 60), m % 60);
+    if (when >= minStart && !busy.some(([b1, b2]) => m < b2 && m + dur > b1)) out.push(toHM(m)); } });
+  return out;
+}
+function pCredits() { // faltas que ainda não têm reposição
+  const D = P.data, usados = new Set(D.eventos.filter(e => e.tipo === "reposicao" && e.ref).map(e => e.ref).concat(D.inbox.filter(i => i.tipo === "reposicao").map(i => i.payload.ref)));
+  const lim = ymd(new Date(parseYmd(D.hoje.slice(0, 10)).getTime() - 60 * 864e5));
+  return D.eventos.filter(e => e.tipo === "falta" && e.data >= lim && !usados.has(e.data)).sort((x, y) => x.data.localeCompare(y.data));
+}
+function pEnvios() { // envios com o que o aluno já mandou e ainda não foi processado pela professora
+  const D = P.data, sent = new Map(D.inbox.filter(i => i.tipo === "envio").map(i => [i.payload.envio_id, i]));
+  return D.envios.map(e => { const s = sent.get(e.id); if (s && e.status === "pendente") { const t = D.atividades.find(x => x.id === e.atividade), g = t ? gradeFull(t, s.payload.respostas || {}) : { ok: 0, tot: 0 };
+    return { ...e, respostas: s.payload.respostas, acertos: g.ok, total: g.tot, feito: (s.criado || "").slice(0, 10) || P.data.hoje.slice(0, 10), status: t && hasWriting(t) ? "corrigir" : "feito" }; } return e; })
+    .sort((x, y) => (y.enviado || "").localeCompare(x.enviado || ""));
+}
+function pTema() { const D = P.data, t = D.inbox.filter(i => i.tipo === "tema").pop(); return Object.assign({ cor: "#B88378", fonte: "Poppins", foto: "" }, D.aluno.tema || {}, t ? t.payload.tema : {}); }
+
+// ---------- telas
+const PORTAL_COLORS = ["#B88378", "#CFA22B", "#7D876A", "#5F7E98", "#8A7DA6", "#C4302B", "#2F6F73", "#3F3633"];
+const PORTAL_FONTS = [["Poppins", "Moderna"], ["Playfair Display", "Elegante"], ["Nunito", "Arredondada"], ["Caveat", "Manuscrita"]];
+function softHex(hex, a) { const h = hex.replace("#", ""), r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16), m = c => Math.round(c * a + (MODE === "dark" ? 30 : 255) * (1 - a)); return `rgb(${m(r)},${m(g)},${m(b)})`; }
+function inkFor(hex) { const h = hex.replace("#", ""), L = [0, 2, 4].map(i => { const c = parseInt(h.slice(i, i + 2), 16) / 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); }); return .2126 * L[0] + .7152 * L[1] + .0722 * L[2] > .32 ? "#2A1F1C" : "#FFFFFF"; }
+function portalShell(inner) {
+  const th = pTema();
+  app.innerHTML = `${P.demoBack ? `<div class="private small btns" style="justify-content:space-between"><span>Prévia da página do aluno (como o aluno vê)</span><button class="btn sm" id="pBackPanel">‹ Voltar ao painel</button></div>` : ""}
+    <div class="portal stack" style="gap:18px;--accent:${th.cor};--soft:${softHex(th.cor, .2)};--on-accent:${inkFor(th.cor)};--accent-ink:${inkFor(th.cor)};font-family:'${th.fonte}', var(--sans)">
+      <div class="btns" style="justify-content:flex-end">${togglesHtml()}${P.view !== "home" ? "" : `<button class="btn sm" id="pOut">Sair</button>`}</div>
+      ${inner}
+      <p class="hint" style="text-align:center;margin:8px 0 0">Your voice, in another language. · Teacher Fabiane Colaço · ${esc(P.data.ajustes.telefone || "")}</p>
+    </div>`;
+  bindToggles();
+  if ($("#pBackPanel")) $("#pBackPanel").addEventListener("click", () => { const b = P.demoBack; P.demoBack = null; P.data = null; go(b.tab, b.view); });
+  if ($("#pOut")) $("#pOut").addEventListener("click", () => { try { localStorage.removeItem("pin_" + P.token); } catch (e) {} P.data = null; P.pin = ""; vPortalLogin(); });
+}
+function vPortalLogin(msg) {
+  app.innerHTML = `${P.demoBack ? `<div class="private small btns" style="justify-content:space-between"><span>Prévia da página do aluno</span><button class="btn sm" id="pBackPanel">‹ Voltar ao painel</button></div>` : ""}
+    <div class="btns" style="justify-content:flex-end">${togglesHtml()}</div>
+    <form class="panel stack login" id="pinForm" style="margin-top:4vh">
+      <div class="mono" aria-hidden="true"><span>F</span><i>c</i></div>
+      <div><p class="eyebrow">English with Teacher Fabi</p><h1 style="font-size:28px">Olá! Digite seu PIN</h1></div>
+      <label for="pPin">PIN de 4 números<input id="pPin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" required style="font-size:22px;letter-spacing:.4em;text-align:center"></label>
+      <button class="btn primary" type="submit">Entrar</button>
+      <p class="hint" style="margin:0">Seu PIN foi enviado pela Teacher Fabi. Esqueceu? Peça para ela no WhatsApp.</p>
+      ${P.demoBack ? `<p class="hint" style="margin:0">Demonstração: o PIN deste aluno é <b>${esc((aluno(P.demoBack.view.id) || {}).pin || "")}</b>.</p>` : ""}
+      <p class="status" id="pStatus" role="status" aria-live="polite">${esc(msg || "")}</p>
+    </form>`;
+  bindToggles(); translate(app); $("#pPin").focus();
+  if ($("#pBackPanel")) $("#pBackPanel").addEventListener("click", () => { const b = P.demoBack; P.demoBack = null; go(b.tab, b.view); });
+  $("#pinForm").addEventListener("submit", async e => { e.preventDefault(); const pin = $("#pPin").value.trim(); const st = $("#pStatus"); st.textContent = LANG === "en" ? "Checking…" : "Conferindo…";
+    await portalOpen(P.token, pin); });
+}
+async function portalOpen(token, pin, silent) {
+  const d = await portalApi.load(token, pin);
+  if (!d || d.erro) {
+    if (silent) return vPortalLogin();
+    const m = !d ? "Não consegui abrir agora. Tente de novo." : d.erro === "bloqueado" ? "Muitas tentativas. Espere 15 minutos e tente de novo." : d.erro === "rede" ? "Sem conexão. Confira a internet e tente de novo." : "PIN incorreto. Confira com a Teacher Fabi.";
+    const st = $("#pStatus"); if (st) { st.textContent = m; translate(st); } return false;
+  }
+  P.token = token; P.pin = pin; P.data = d; if (!P.demoBack) { try { localStorage.setItem("pin_" + token, pin); } catch (e) {} }
+  P.view = "home"; renderPortal(); return true;
+}
+async function portalReload() { const d = await portalApi.load(P.token, P.pin); if (d && !d.erro) P.data = d; renderPortal(); }
+function renderPortal() { closeSheet(true); (P.view === "atv" ? vPortalAtv : vPortalHome)(); translate(document.body); window.scrollTo(0, 0); }
+
+function vPortalHome() {
+  const D = P.data, a = D.aluno, th = pTema(), envs = pEnvios(), pend = envs.filter(e => e.status === "pendente"), done = envs.filter(e => e.status !== "pendente");
+  const ac = done.reduce((s, e) => s + (e.acertos || 0), 0), tot = done.reduce((s, e) => s + (e.total || 0), 0), pct = tot ? Math.round(ac / tot * 100) : null;
+  const hoje = D.hoje.slice(0, 10), fim = ymd(new Date(parseYmd(hoje).getTime() + 27 * 864e5)), prox = pOcc(hoje, fim).filter(o => o.data >= hoje).slice(0, 8);
+  const credits = pCredits();
+  const mens = D.mensalidades.slice().sort((x, y) => (y.ano * 100 + y.mes) - (x.ano * 100 + x.mes));
+  const mNow = mens.find(m => m.ano * 100 + m.mes <= +hoje.slice(0, 4) * 100 + +hoje.slice(5, 7)) || mens[0];
+  const series = done.filter(e => e.total).sort((x, y) => (x.feito || "").localeCompare(y.feito || "")).map(e => Math.round(e.acertos / e.total * 100));
+  const nome = a.apelido || a.nome.split(" ")[0];
+  portalShell(`
+    <section class="panel" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;background:linear-gradient(135deg,var(--soft),var(--panel) 70%);position:relative;overflow:hidden">
+      <span class="avatar lg" style="background:var(--soft);color:var(--accent)">${th.foto ? `<img src="${th.foto}" alt="">` : esc(initials(nome))}</span>
+      <div class="stack tight" style="flex:1;min-width:200px">
+        <p class="eyebrow" style="margin:0;color:var(--accent)">English with Teacher Fabi</p>
+        <h1 style="font-family:'${th.fonte}', var(--serif)">Hi, <span data-notr>${esc(nome)}</span>!</h1>
+        <div class="btns" style="gap:6px"><span class="badge lvl">Level ${esc(a.nivel)}</span>${pct !== null ? `<span class="badge">${pct}% de acertos</span>` : ""}<span class="badge">${done.length} feitas · ${pend.length} para fazer</span></div>
+      </div>
+      <button class="btn sm" id="pCustom" aria-expanded="false">Personalizar minha página</button>
+    </section>
+    <section class="panel stack" id="pCustomBox" hidden>
+      <h3>Deixe a página com a sua cara</h3>
+      <div class="stack tight"><span class="hint">Cor</span><div class="btns">${PORTAL_COLORS.map(c => `<button type="button" class="swatch" data-c="${c}" style="width:32px;height:32px;border-radius:50%;background:${c};border:2px solid var(--panel);box-shadow:0 0 0 ${th.cor === c ? "2px var(--ink)" : "1px var(--line)"}" aria-label="Cor ${c}" aria-pressed="${th.cor === c}"></button>`).join("")}
+        <label style="flex-direction:row;align-items:center;gap:6px;color:var(--ink)">Outra<input type="color" id="pAnyColor" value="${th.cor}" style="width:40px;height:32px;padding:2px"></label></div></div>
+      <div class="stack tight"><span class="hint">Fonte</span><div class="btns">${PORTAL_FONTS.map(([f, l]) => `<button type="button" class="chip" data-f="${f}" style="font-family:'${f}'" aria-pressed="${th.fonte === f}">${l}</button>`).join("")}</div></div>
+      <div class="stack tight"><span class="hint">Foto</span><div class="btns"><label class="btn sm" style="flex-direction:row;cursor:pointer;color:var(--ink)">Escolher foto<input type="file" id="pPhoto" accept="image/*" hidden></label>${th.foto ? `<button class="link danger" id="pRmPhoto">Remover foto</button>` : ""}</div></div>
+      <p class="status" id="pCustomStatus" role="status"></p>
+    </section>
+    <div class="cols">
+      <div class="stack">
+        <section class="stack tight"><h2>Para fazer</h2>
+          <div class="list">${pend.map(e => { const t = D.atividades.find(x => x.id === e.atividade); if (!t) return ""; const d = daysBetween(e.enviado, hoje);
+            return `<div class="item"><div style="min-width:0"><div class="t" data-notr>${esc(t.titulo)}</div><div class="small muted">${d === 0 ? "Enviada hoje" : d === 1 ? "Enviada ontem" : `Enviada há ${d} dias`}</div></div>
+              <div class="acts">${d >= 7 ? `<span class="badge warn">Não esqueça!</span>` : ""}<button class="btn primary sm" data-do="${e.id}">Começar</button></div></div>`; }).join("") || `<div class="empty">Tudo em dia! Nenhuma atividade esperando. 🎉</div>`}</div></section>
+        <section class="stack tight"><h2>Minhas notas</h2>
+          ${series.length > 1 ? `<div class="panel stack tight" style="padding:14px"><span class="hint">Sua evolução (% de acertos por atividade)</span>${spark(series)}</div>` : ""}
+          <div class="list">${done.map(e => { const t = D.atividades.find(x => x.id === e.atividade); if (!t) return ""; const pc = e.total ? Math.round(e.acertos / e.total * 100) : 0;
+            return `<div class="item"><div class="stack tight" style="min-width:0;gap:5px"><div class="t" data-notr>${esc(t.titulo)}</div>
+              <div style="height:6px;border-radius:99px;background:var(--line);overflow:hidden" role="img" aria-label="${pc}%"><i style="display:block;height:100%;width:${pc}%;background:var(--accent)"></i></div>
+              <div class="small muted">${e.acertos}/${e.total} certas${e.status === "corrigir" ? " · escrita esperando a Teacher Fabi" : e.nota_escrita != null ? ` · escrita ${e.nota_escrita}/10` : ""}</div>
+              ${e.feedback ? `<div class="small" style="background:var(--soft);border-radius:8px;padding:8px 10px"><b>Teacher Fabi:</b> <span data-notr>${esc(e.feedback)}</span></div>` : ""}</div>
+              <div class="acts"><button class="btn sm" data-rev="${e.id}">Revisar</button></div></div>`; }).join("") || `<div class="empty">Suas atividades feitas aparecem aqui.</div>`}</div></section>
+      </div>
+      <div class="stack">
+        <section class="panel stack"><h3>Minhas aulas</h3>
+          <div class="list">${prox.map(o => `<div class="item" style="padding:9px 12px"><div style="min-width:0"><div class="t">${WD_FULL[parseYmd(o.data).getDay()]}, ${fmtDM(o.data)} · ${o.hora}</div><div class="small muted">${o.dur} min</div></div>
+            <div class="acts">${o.tipo === "falta" ? `<span class="badge bad">Falta</span>` : o.tipo === "cancelada" ? `<span class="badge">Cancelada</span>` : o.tipo === "reposicao" ? `<span class="badge info">Reposição</span>` : o.tipo === "extra" ? `<span class="badge warn">Extra</span>` : ""}</div></div>`).join("") || `<div class="empty">Nenhuma aula nas próximas semanas.</div>`}</div>
+          ${credits.length ? `<div class="stack tight" style="border-top:1px solid var(--line);padding-top:12px"><b style="font-weight:500">Reposição</b>
+            <span class="small muted">Você tem ${credits.length} aula${credits.length > 1 ? "s" : ""} para repor. Escolha um horário livre com pelo menos 48 horas de antecedência.</span>
+            <div><button class="btn primary sm" id="pRepo">Marcar reposição</button></div></div>` : ""}
+        </section>
+        ${mNow ? `<section class="panel stack tight"><h3>Mensalidade</h3>
+          <div class="top" style="align-items:center"><div><div class="small muted">${MONTHS[mNow.mes - 1]} ${mNow.ano}</div><div class="score" style="font-size:24px">${money(mNow.valor)}</div></div>
+            ${mNow.pago ? `<span class="badge ok">✓ Pago</span>` : `<span class="badge warn">Pendente</span>`}</div>
+          ${mNow.datas && mNow.datas.length ? `<div class="small muted">Aulas: ${mNow.datas.map(pad).join(", ")}</div>` : ""}
+          ${!mNow.pago ? `<div class="btns"><button class="btn primary sm" id="pPay">Pagar com Pix</button></div>` : ""}</section>` : ""}
+        ${D.aulas_publicas.length ? `<section class="panel stack tight"><h3>Assuntos das aulas</h3>${D.aulas_publicas.sort((x, y) => y.data.localeCompare(x.data)).slice(0, 10).map(d => `<div class="entry"><div class="d">${fmtDate(d.data)}</div><div data-notr>${esc(d.assunto)}</div></div>`).join("")}</section>` : ""}
+      </div>
+    </div>`);
+  $("#pCustom").addEventListener("click", e => { const b = $("#pCustomBox"); b.hidden = !b.hidden; e.currentTarget.setAttribute("aria-expanded", !b.hidden); });
+  const saveTema = async t => { const st = $("#pCustomStatus"); if (st) st.textContent = "…"; const r = await portalApi.post("tema", { tema: t });
+    if (r && r.erro) { if (r.erro === "sessao") return; if (st) { st.textContent = "Não consegui salvar. Tente de novo."; translate(st); } return; }
+    if (PROD) P.data.inbox.push({ tipo: "tema", payload: { tema: t }, criado: new Date().toISOString() }); else P.data.aluno.tema = t;
+    renderPortal(); $("#pCustomBox").hidden = false; };
+  $$("[data-c]").forEach(b => b.addEventListener("click", () => saveTema({ ...pTema(), cor: b.dataset.c })));
+  $("#pAnyColor").addEventListener("change", e => saveTema({ ...pTema(), cor: e.target.value }));
+  $$("[data-f]").forEach(b => b.addEventListener("click", () => saveTema({ ...pTema(), fonte: b.dataset.f })));
+  $("#pPhoto").addEventListener("change", e => { const f = e.target.files[0]; if (!f) return; const img = new Image();
+    img.onload = () => { const c = document.createElement("canvas"), s = 280, r = Math.min(img.width, img.height); c.width = c.height = s; c.getContext("2d").drawImage(img, (img.width - r) / 2, (img.height - r) / 2, r, r, 0, 0, s, s); URL.revokeObjectURL(img.src); saveTema({ ...pTema(), foto: c.toDataURL("image/jpeg", .82) }); };
+    img.src = URL.createObjectURL(f); });
+  if ($("#pRmPhoto")) $("#pRmPhoto").addEventListener("click", () => saveTema({ ...pTema(), foto: "" }));
+  $$("[data-do]").forEach(b => b.addEventListener("click", () => { P.view = "atv"; P.envio = b.dataset.do; renderPortal(); }));
+  $$("[data-rev]").forEach(b => b.addEventListener("click", () => { P.view = "atv"; P.envio = b.dataset.rev; renderPortal(); }));
+  if ($("#pRepo")) $("#pRepo").addEventListener("click", openRepo);
+  if ($("#pPay")) $("#pPay").addEventListener("click", () => openPay(mNow));
+}
+function spark(vals) {
+  const W = 640, H = 120, n = vals.length, x = i => 12 + i * (W - 24) / (n - 1), y = v => H - 10 - v / 100 * (H - 34);
+  const pts = vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:100%;height:auto" role="img" aria-label="Evolução: ${vals.join("%, ")}%">
+    <line x1="8" x2="${W - 8}" y1="${y(50)}" y2="${y(50)}" stroke="var(--line)" stroke-dasharray="3 3"/>
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${vals.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="${i === n - 1 ? 4.5 : 3}" fill="${i === n - 1 ? "var(--accent)" : "var(--panel)"}" stroke="var(--accent)" stroke-width="2"/>`).join("")}
+    <text x="${x(n - 1)}" y="${y(vals[n - 1]) - 10}" text-anchor="end" font-size="14" fill="var(--ink)">${vals[n - 1]}%</text></svg>`;
+}
+function openPay(m) {
+  const A = P.data.ajustes, a = P.data.aluno, cv = $("#cv");
+  const d = { name: a.apelido || a.nome.split(" ")[0], greeting: a.saudacao || "Hello", year: m.ano, month: m.mes - 1, dates: m.datas || [], total: m.valor, color: a.cor_card || "rose",
+    showPix: !!A.pix_chave, pixKey: A.pix_chave, pixName: A.pix_nome, pixCity: A.pix_cidade, phone: A.telefone, thanks: A.obrigado };
+  drawCard(cv, d); const code = A.pix_chave ? pixPayload(A.pix_chave, A.pix_nome, A.pix_cidade, m.valor) : "";
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">${MONTHS[m.mes - 1]} ${m.ano}</p><h2>Mensalidade · ${money(m.valor)}</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <img src="${cv.toDataURL("image/png")}" alt="Card da mensalidade com QR Pix" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+    ${code ? `<label>Pix copia e cola<textarea id="pixCode" readonly style="min-height:80px;font-size:12px" data-notr>${esc(code)}</textarea></label>
+      <div class="btns"><button class="btn primary" id="copyPix">Copiar código Pix</button></div>
+      <p class="hint" style="margin:0">No app do banco, escolha Pix → Copia e cola, ou aponte a câmera para o QR Code.</p>` : `<p class="small muted">A Teacher Fabi ainda não cadastrou a chave Pix.</p>`}
+    <p class="status" id="payStatus" role="status"></p>`);
+  if ($("#copyPix")) $("#copyPix").addEventListener("click", () => navigator.clipboard.writeText(code).then(() => { $("#payStatus").textContent = LANG === "en" ? "Pix code copied." : "Código Pix copiado."; })
+    .catch(() => { const t = $("#pixCode"); t.focus(); t.select(); }));
+}
+function openRepo() {
+  const credits = pCredits(), a = P.data.aluno, dur = (a.aulas[0] || {}).dur || 60, hoje = P.data.hoje.slice(0, 10);
+  const days = [...Array(14)].map((_, i) => ymd(new Date(parseYmd(hoje).getTime() + (i + 1) * 864e5))).map(ds => [ds, pFreeStarts(ds, dur)]).filter(([, f]) => f.length);
+  let ref = credits[0].data, pick = null;
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">Reposição</p><h2>Escolha um horário</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    ${credits.length > 1 ? `<label>Qual aula você vai repor?<select id="rRef">${credits.map(c => `<option value="${c.data}">${WD_FULL[parseYmd(c.data).getDay()]}, ${fmtDate(c.data)} · ${c.hora}</option>`).join("")}</select></label>`
+      : `<p class="small muted" style="margin:0">Reposição da aula de ${fmtDate(ref)} (${dur} min).</p>`}
+    <p class="hint" style="margin:0">Mostrando só horários livres da Teacher Fabi com pelo menos 48 horas de antecedência.</p>
+    <div class="stack">${days.map(([ds, f]) => `<div class="stack tight"><b style="font-weight:500">${WD_FULL[parseYmd(ds).getDay()]}, ${fmtDM(ds)}</b><div class="chips">${f.map(h => `<button type="button" class="chip" data-slot="${ds}|${h}" aria-pressed="false">${h}</button>`).join("")}</div></div>`).join("") || `<div class="empty">Não há horários livres nas próximas 2 semanas. Fale com a Teacher Fabi pelo WhatsApp.</div>`}</div>
+    <div class="btns"><button class="btn primary" id="rOk" disabled>Confirmar reposição</button></div><p class="status" id="rSt" role="status"></p>`, true);
+  if ($("#rRef")) $("#rRef").addEventListener("change", e => ref = e.target.value);
+  $$("[data-slot]", sheetInner).forEach(b => b.addEventListener("click", () => { $$("[data-slot]", sheetInner).forEach(x => x.setAttribute("aria-pressed", x === b)); pick = b.dataset.slot.split("|"); $("#rOk").disabled = false; }));
+  $("#rOk").addEventListener("click", async () => { if (!pick) return; $("#rOk").disabled = true; const st = $("#rSt"); st.textContent = "…";
+    const r = await portalApi.post("reposicao", { ref, data: pick[0], hora: pick[1], dur });
+    if (r && r.erro) { if (r.erro === "sessao") return; st.textContent = r.erro === "credito" ? "Essa aula já tem reposição marcada." : r.erro === "horario" ? "Esse horário acabou de ser ocupado ou está a menos de 48h. Escolha outro." : "Não consegui marcar. Tente de novo."; translate(st); $("#rOk").disabled = false; return; }
+    closeSheet(true); await portalReload(); });
+}
+
+// ---------- fazer atividade
+function vPortalAtv() {
+  const D = P.data, e = pEnvios().find(x => x.id === P.envio), t = e && D.atividades.find(x => x.id === e.atividade);
+  if (!e || !t) { P.view = "home"; return renderPortal(); }
+  const done = e.status !== "pendente", mus = t.musica; let n = 0;
+  const g = done ? gradeFull(t, e.respostas || {}) : null;
+  const body = t.itens.map((i, k) => {
+    if (i.t === "info") return `<div class="instr" data-notr>${esc(i.p)}</div>`;
+    if (i.t === "media") return `<a class="btn" href="${esc(i.url)}" target="_blank" rel="noopener">▶ ${i.p ? `<span data-notr>${esc(i.p)}</span>` : "Abrir áudio/vídeo"}</a>`;
+    n++; const head = `<div class="n">Question ${n}</div>`, R = e.respostas || {};
+    if (i.t === "mc") return `<fieldset class="q" style="margin:0">${head}<legend class="sr" style="position:absolute;left:-9999px">Question ${n}</legend><div class="p" data-notr>${esc(i.p)}</div>${i.o.map((o, j) => `<label class="opt ${done ? (j === i.c ? "right" : R[k] === j ? "wrong" : "") : ""}" style="flex-direction:row;cursor:pointer"><input type="radio" name="q${k}" value="${j}" ${done ? "disabled" : ""} ${R[k] === j ? "checked" : ""} style="width:auto;accent-color:var(--accent)"> <span data-notr>${esc(o)}</span></label>`).join("")}</fieldset>`;
+    if (i.t === "tf") return `<div class="q">${head}<div class="p" data-notr>${esc(i.p)}</div><div class="btns">${[true, false].map(v => `<button type="button" class="opt ${done ? (v === i.v ? "right" : R[k] === v ? "wrong" : "") : ""}" data-tf="${k}" data-v="${v}" aria-pressed="${R[k] === v}" ${done ? "disabled" : ""}>${v ? "True" : "False"}</button>`).join("")}</div></div>`;
+    if (i.t === "gap") { let j = 0; return `<div class="q">${head}<div class="gapline" data-notr>${esc(i.p).replace(/\[([^\]]+)\]/g, (m, alts) => { const jj = j++, val = (R[k] || [])[jj] || "";
+      return done ? `<b style="color:${g.detail[k][jj] ? "var(--ok)" : "var(--bad)"}">${esc(val || "—")}</b>${g.detail[k][jj] ? "" : ` <span class="fix">(${esc(alts.split("|")[0])})</span>`}` : `<input data-g="${k}" data-j="${jj}" aria-label="Lacuna" autocomplete="off" autocapitalize="off" spellcheck="false">`; })}</div></div>`; }
+    if (i.t === "match") { const rights = shuffleStable(i.pairs.map(p => p[1]));
+      return `<div class="q">${head}<div class="p" data-notr>${esc(i.p)}</div>${i.pairs.map(([l, r], j) => `<div class="opt ${done ? (g.detail[k][j] ? "right" : "wrong") : ""}" style="flex-wrap:wrap"><b style="font-weight:500;min-width:110px" data-notr>${esc(l)}</b><span class="muted">→</span>
+        ${done ? `<span data-notr>${esc((R[k] || [])[j] || "—")}</span>${g.detail[k][j] ? "" : ` <span class="fix">(${esc(r)})</span>`}` : `<select data-m="${k}" data-j="${j}" style="width:auto;flex:1;min-width:140px" aria-label="Par de ${esc(l)}"><option value="">Escolha…</option>${rights.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select>`}</div>`).join("")}</div>`; }
+    if (i.t === "order") { const w = shuffleStable(String(i.s).trim().split(/\s+/));
+      return `<div class="q">${head}<div class="p" data-notr>${esc(i.p)}</div>${done ? `<div style="color:${g.detail[k] ? "var(--ok)" : "var(--bad)"}" data-notr>${esc(R[k] || "—")}</div>${g.detail[k] ? "" : `<div class="fix" data-notr>${esc(i.s)}</div>`}`
+        : `<div class="order-ans" data-o="${k}" style="min-height:44px;border:1px dashed var(--line);border-radius:10px;padding:8px;display:flex;flex-wrap:wrap;gap:6px" aria-label="Sua frase"></div>
+           <div class="chips" data-pool="${k}">${w.map((x, j) => `<button type="button" class="chip" data-w="${k}" data-i="${j}" data-notr>${esc(x)}</button>`).join("")}</div>`}</div>`; }
+    if (i.t === "write") return `<div class="q"><div class="n">Writing</div><div class="p" data-notr>${esc(i.p)}</div>${done ? `<div style="white-space:pre-wrap" data-notr>${esc(R[k] || "")}</div>${e.feedback ? `<div class="small" style="background:var(--soft);border-radius:8px;padding:8px 10px"><b>Teacher Fabi:</b> <span data-notr>${esc(e.feedback)}</span>${e.nota_escrita != null ? ` · ${e.nota_escrita}/10` : ""}</div>` : `<div class="hint">Esperando a correção da Teacher Fabi.</div>`}`
+      : `<textarea data-wr="${k}" style="min-height:140px" placeholder="Write here…"></textarea><div class="hint" data-wc="${k}">0 palavras${i.min ? ` · mínimo ${i.min}` : ""}</div>`}</div>`;
+    return "";
+  }).join("");
+  const musicHtml = mus ? `<a class="btn" href="${esc(mus.youtube)}" target="_blank" rel="noopener">▶ Ouvir no YouTube</a>
+    ${mus.vocab && mus.vocab.length ? `<section class="stack tight"><h3>Vocabulary & pronunciation</h3><div class="vocab">${mus.vocab.map(([w, p, tr]) => `<div data-notr><b>${esc(w)}</b><span class="small">🗣 ${esc(p || "")}</span><br><span class="small muted">${esc(tr || "")}</span></div>`).join("")}</div></section>` : ""}
+    ${mus.letra ? `<section class="q"><div class="n">Lyrics · listen and complete</div><div class="gapline" style="white-space:pre-wrap" data-notr>${(() => { let j = 0; return esc(mus.letra).replace(/\[([^\]]+)\]/g, (m, alts) => { const jj = j++, val = ((e.respostas || {}).letra || [])[jj] || "";
+      return done ? `<b style="color:${g.detail.letra[jj] ? "var(--ok)" : "var(--bad)"}">${esc(val || "—")}</b>${g.detail.letra[jj] ? "" : ` <span class="fix">(${esc(alts.split("|")[0])})</span>`}` : `<input data-l="${jj}" aria-label="Lacuna da letra" autocomplete="off" autocapitalize="off" spellcheck="false">`; }); })()}</div></section>` : ""}` : "";
+  portalShell(`<button class="link" id="pBack" style="align-self:flex-start">‹ Voltar</button>
+    <div class="top"><div><p class="eyebrow" style="color:var(--accent)">${esc(t.tipo)} · Level ${esc(t.nivel)}</p><h1 data-notr style="font-size:clamp(24px,4vw,32px)">${esc(t.titulo)}</h1></div>${done ? `<span class="score" style="font-size:26px">${g.ok}/${g.tot}</span>` : ""}</div>
+    ${musicHtml}
+    <form class="stack" id="pForm">${body}${done ? "" : `<div class="btns"><button class="btn primary" type="submit">Terminar e enviar</button></div>`}<p class="status" id="pFormSt" role="status" aria-live="polite"></p></form>`);
+  $("#pBack").addEventListener("click", () => { P.view = "home"; renderPortal(); });
+  if (done) return;
+  const ord = {};
+  $$("[data-w]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.w; (ord[k] = ord[k] || []).push(b.textContent); b.hidden = true; drawOrd(k); }));
+  const drawOrd = k => { const box = $(`[data-o="${k}"]`); box.innerHTML = (ord[k] || []).map((w, j) => `<button type="button" class="chip" aria-pressed="true" data-rm="${k}" data-j="${j}">${esc(w)}</button>`).join("");
+    $$(`[data-rm="${k}"]`, box).forEach(x => x.addEventListener("click", () => { const w = ord[k].splice(+x.dataset.j, 1)[0]; const back = $$(`[data-w="${k}"]`).find(y => y.hidden && y.textContent === w); if (back) back.hidden = false; drawOrd(k); })); };
+  $$("[data-tf]").forEach(b => b.addEventListener("click", () => { $$(`[data-tf="${b.dataset.tf}"]`).forEach(x => x.setAttribute("aria-pressed", x === b)); }));
+  $$("[data-wr]").forEach(ta => ta.addEventListener("input", () => { const k = ta.dataset.wr, i = t.itens[k]; const el = $(`[data-wc="${k}"]`); el.textContent = `${words(ta.value)} ${LANG === "en" ? "words" : "palavras"}${i.min ? ` · ${LANG === "en" ? "minimum" : "mínimo"} ${i.min}` : ""}`; }));
+  $("#pForm").addEventListener("submit", async ev => { ev.preventDefault();
+    const R = {};
+    t.itens.forEach((i, k) => {
+      if (i.t === "mc") { const c = $(`input[name="q${k}"]:checked`); R[k] = c ? +c.value : null; }
+      if (i.t === "tf") { const b = $(`[data-tf="${k}"][aria-pressed="true"]`); R[k] = b ? b.dataset.v === "true" : null; }
+      if (i.t === "gap") R[k] = $$(`[data-g="${k}"]`).map(x => x.value.trim());
+      if (i.t === "match") R[k] = $$(`[data-m="${k}"]`).map(x => x.value);
+      if (i.t === "order") R[k] = (ord[k] || []).join(" ");
+      if (i.t === "write") R[k] = $(`[data-wr="${k}"]`).value.trim();
+    });
+    if (mus && mus.letra) R.letra = $$("[data-l]").map(x => x.value.trim());
+    const st = $("#pFormSt");
+    const empty = t.itens.some((i, k) => (i.t === "mc" || i.t === "tf") && R[k] == null || i.t === "write" && !R[k] || i.t === "order" && !R[k]);
+    if (empty && !ev.submitter?.dataset.force) { st.innerHTML = `${LANG === "en" ? "Some questions are empty." : "Algumas questões estão em branco."} <button type="submit" class="link" data-force="1">${LANG === "en" ? "Send anyway" : "Enviar assim mesmo"}</button>`; return; }
+    st.textContent = "…";
+    const r = await portalApi.post("envio", { envio_id: e.id, respostas: R });
+    if (r && r.erro) { if (r.erro === "sessao") return; st.textContent = LANG === "en" ? "Couldn't send. Check your connection and try again." : "Não consegui enviar. Confira a internet e tente de novo."; return; }
+    if (PROD) P.data.inbox.push({ tipo: "envio", payload: { envio_id: e.id, respostas: R }, criado: new Date().toISOString() });
+    else { const d = await portalApi.load(P.token, P.pin); if (d && !d.erro) P.data = d; }
+    renderPortal();
+    const g2 = gradeFull(t, R), msg = $("#pFormSt");
+    if (msg) { msg.innerHTML = `<span class="score" style="font-size:22px;color:var(--ink)">${g2.ok}/${g2.tot}</span> ${hasWriting(t) ? (LANG === "en" ? "· Your writing was sent to Teacher Fabi. 💌" : "· Sua escrita foi para a Teacher Fabi. 💌") : (g2.tot && g2.ok / g2.tot >= .7 ? (LANG === "en" ? "· Great job!" : "· Muito bem!") : (LANG === "en" ? "· Done! Check the corrections below." : "· Pronto! Veja as correções abaixo."))}`; }
+  });
+}
+
+// ---------- abrir pela página do aluno (site) ou pela prévia (painel)
+function portalBoot() {
+  const tok = decodeURIComponent((location.hash || "").replace(/^#/, "")).trim();
+  if (!tok) { app.innerHTML = `<div class="empty" style="margin-top:20vh">Link incompleto. Peça o seu link para a Teacher Fabi.</div>`; translate(app); return; }
+  P.token = tok; let saved = ""; try { saved = localStorage.getItem("pin_" + tok) || ""; } catch (e) {}
+  if (saved) { app.innerHTML = `<p class="muted" style="text-align:center;margin-top:20vh">Carregando…</p>`; translate(app); portalOpen(tok, saved, true); } else vPortalLogin();
+}
+function openPortalPreview(a) { P.demoBack = { tab: UI.tab, view: UI.view }; P.token = a.token; P.data = null; vPortalLogin(); }
+
+// ---------- o que chegou dos alunos (painel)
+let pulling = false;
+async function pullInbox() {
+  if (!PROD || pulling) return; pulling = true;
+  try {
+    const { data, error } = await sb.from("portal_inbox").select("id, aluno_id, tipo, payload, criado").order("id").limit(200);
+    if (error || !data || !data.length) return;
+    if (saveState === "saving") { clearTimeout(saveTimer); await pushRemote(); }
+    data.forEach(applyInboxItem);
+    await pushRemote();
+    if (saveState !== "ok") return; // não apaga: aplica de novo na próxima (é seguro repetir)
+    await sb.from("portal_inbox").delete().in("id", data.map(r => r.id));
+    if (logged && !P.demoBack) { const keep = UI.view && UI.view.name === "editor"; if (!keep) render(); else { const b = $("#bell"); if (b) b.outerHTML = bellHtml(); bindBell(); } }
+  } catch (e) {} finally { pulling = false; }
+}
+function bellHtml() { const n = (DB.novidades || []).filter(x => !x.lida).length; return `<button class="btn sm" id="bell" aria-label="Novidades dos alunos${n ? ": " + n : ""}">🔔${n ? ` <b>${n}</b>` : ""}</button>`; }
+function bindBell() { const b = $("#bell"); if (!b) return; b.addEventListener("click", () => {
+  const L = DB.novidades || [];
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">Alunos</p><h2>Novidades</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <div class="list">${L.map(x => { const a = aluno(x.aluno); return `<div class="item" style="${x.lida ? "" : "border-color:var(--accent)"}"><div style="min-width:0"><div class="t" style="white-space:normal" >${esc(x.texto)}</div><div class="small muted">${fmtDate(x.quando.slice(0, 10))}</div></div>${a ? `<div class="acts"><button class="btn sm" data-nv="${a.id}">Ver aluno</button></div>` : ""}</div>`; }).join("") || `<div class="empty">Nada novo. Quando um aluno fizer uma atividade ou marcar reposição, aparece aqui.</div>`}</div>`);
+  $$("[data-nv]", sheetInner).forEach(x => x.addEventListener("click", () => { closeSheet(true); go("alunos", { name: "aluno", id: x.dataset.nv }); }));
+  if (L.some(x => !x.lida)) { L.forEach(x => x.lida = true); save(); const bb = $("#bell"); if (bb) { bb.outerHTML = bellHtml(); bindBell(); } }
+}); }
+
 // ============================================================ início
 load(); applyLang(); applyMode();
 if (PROD) { logged = false; DB = starterDB(); }
 const fontsReady = document.fonts && document.fonts.load ? Promise.all(['500 40px "Playfair Display"','italic 400 34px "Playfair Display"','600 84px "Playfair Display"','400 16px "Poppins"','500 30px "Poppins"'].map(f => document.fonts.load(f))).catch(() => {}) : Promise.resolve();
-if (PROD) { app.innerHTML = `<p class="muted" style="text-align:center;margin-top:20vh">Carregando…</p>`;
-  sb.auth.getSession().then(async ({ data }) => { if (data.session) { try { await loadRemote(); logged = true; } catch (e) {} } render(); });
+if (PORTAL) portalBoot();
+else if (PROD) { app.innerHTML = `<p class="muted" style="text-align:center;margin-top:20vh">Carregando…</p>`;
+  sb.auth.getSession().then(async ({ data }) => { if (data.session) { try { await loadRemote(); logged = true; pullInbox(); } catch (e) {} } render(); });
+  setInterval(() => { if (logged && document.visibilityState === "visible") pullInbox(); }, 60000);
+  window.addEventListener("focus", () => { if (logged) pullInbox(); });
 } else render();
 })();
 </script>
