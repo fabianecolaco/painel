@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,400&family=Poppins:wght@300;400;500;600&family=Nunito:wght@400;600;700&family=Caveat:wght@500;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <style>
 /* Layout: painel da professora com abas (Agenda, Alunos, Financeiro, Atividades, Correções, Ajustes); perfis e ações abrem em páginas internas e painéis laterais */
@@ -158,7 +158,8 @@ fieldset.group legend{font-family:var(--serif);font-size:15px;padding:0 6px;colo
 .docthumb.zip span{width:64px;height:64px;border-radius:50%;border:1.5px solid var(--accent);display:grid;place-items:center;font-family:var(--serif);font-size:24px;color:var(--ink)}
 /* login */
 .login{max-width:420px;margin:8vh auto 0;width:100%}
-.login .mono{width:64px;height:64px;border-radius:50%;border:1.5px solid var(--accent);display:grid;place-items:center;font-family:var(--serif);font-size:24px;margin-bottom:6px}
+.login .mono{width:68px;height:68px;border-radius:50%;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:500;font-size:28px;line-height:1;letter-spacing:-1px;padding-bottom:3px;margin-bottom:6px;color:var(--ink)}
+.login .mono i{font-style:italic;font-weight:400;color:var(--accent);margin-left:1px}
 
 /* atividade (prévia) */
 .q{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
@@ -478,7 +479,7 @@ function vLogin() {
   app.innerHTML = `
     <div class="btns" style="justify-content:flex-end">${togglesHtml()}</div>
     <form class="panel stack login" id="loginForm" style="margin-top:4vh">
-      <div class="mono" aria-hidden="true">F<i style="font-weight:400;color:var(--accent)">c</i></div>
+      <div class="mono" aria-hidden="true"><span>F</span><i>c</i></div>
       <div><p class="eyebrow">Teacher Fabi</p><h1 style="font-size:28px">Entrar no painel</h1></div>
       <label for="lEmail">E-mail<input id="lEmail" type="email" autocomplete="username" value="${PROD ? "" : "fabiane@exemplo.com"}" required></label>
       <label for="lPass">Senha<input id="lPass" type="password" autocomplete="current-password" required></label>

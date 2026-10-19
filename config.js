@@ -3,6 +3,6 @@
 // NUNCA coloque aqui a chave service_role / secret.
 // Com os campos vazios, o site abre em modo demonstração.
 window.APP_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: ""
+  SUPABASE_URL: "https://eisefcudynnjeoohcfzb.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_LaFSMrep368K3vL7fvBT3A_gaXKTNUP"
 };
