@@ -1,0 +1,1350 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>Painel Teacher Fabi</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,400&family=Poppins:wght@300;400;500;600&family=Nunito:wght@400;600;700&family=Caveat:wght@500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+/* Layout: painel da professora com abas (Agenda, Alunos, Financeiro, Atividades, Correções, Ajustes); perfis e ações abrem em páginas internas e painéis laterais */
+:root{
+  --bg:#FAF6F2; --panel:#FFFFFF; --ink:#3F3633; --muted:#8C7F7A; --line:#EADFD8; --field:#FFFDFB;
+  --accent:#B88378; --accent-ink:#FFFFFF; --soft:#F3E2DA; --gold:#CFA22B; --gold-soft:#F9EAB8;
+  --ok:#4F8462; --ok-bg:#E4EFE7; --warn:#A8721F; --warn-bg:#F7EAD3; --bad:#B4554B; --bad-bg:#F6E1DE; --info:#5F7E98; --info-bg:#E3EBF2;
+  --on-accent:#FFFFFF; --lvl-bg:#3F3633; --lvl-ink:#FFFFFF; --priv-bg:#FFF8E8; --priv-line:#E5C77F; --priv-ink:#A8721F;
+  --ev-ink:#7A4E45; --extra-ink:#7A5B0E; --cancel-bg:#EEEEEE; --cancel-ink:#8A8482; --free-bg:#F6FBF7; --free-line:#BFD6C5; --overlay:rgba(40,30,28,.35);
+  --deco-a:#F1DCD3; --deco-b:#F3E2DA; --deco-ring:rgba(184,131,120,.35);
+  --serif:"Playfair Display", Georgia, serif; --sans:"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:light;
+}
+:root[data-mode="dark"]{
+  --bg:#1E1A19; --panel:#282321; --ink:#F2EAE6; --muted:#ADA19C; --line:#3D3532; --field:#231F1D;
+  --accent:#D29C90; --accent-ink:#2A1F1C; --soft:#4A3530; --gold:#E0B84A; --gold-soft:#4A3F1F;
+  --ok:#8FC4A0; --ok-bg:#22382B; --warn:#E2B867; --warn-bg:#3E3220; --bad:#E39088; --bad-bg:#44282A; --info:#9FBCD6; --info-bg:#26323D;
+  --on-accent:#2A1F1C; --lvl-bg:#F2EAE6; --lvl-ink:#2A2321; --priv-bg:#352D20; --priv-line:#7A6533; --priv-ink:#E2B867;
+  --ev-ink:#F0CFC6; --extra-ink:#F1D58A; --cancel-bg:#3A3533; --cancel-ink:#A39A97; --free-bg:#1F2C25; --free-line:#3F5E4B; --overlay:rgba(0,0,0,.55);
+  --deco-a:#3A2A26; --deco-b:#332724; --deco-ring:rgba(210,156,144,.28);
+  color-scheme:dark;
+}
+.bgdeco{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.bgdeco i{position:absolute;border-radius:50%;display:block}
+.bgdeco .g{right:-180px;bottom:-200px;width:760px;height:760px;background:radial-gradient(circle,var(--deco-a) 0%,transparent 68%)}
+.bgdeco .c{right:-120px;bottom:-120px;width:460px;height:460px;background:var(--deco-b)}
+.bgdeco .r{right:40px;bottom:60px;width:560px;height:560px;border:1.5px solid var(--deco-ring)}
+.bgdeco .l{right:120px;top:90px;width:220px;height:0;border-top:1.5px solid var(--deco-ring);border-radius:0}
+@media (max-width:720px){.bgdeco .g{width:420px;height:420px}.bgdeco .c{width:260px;height:260px}.bgdeco .r{width:320px;height:320px;right:-40px}.bgdeco .l{display:none}}
+.toggles{display:inline-flex;gap:6px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
+.seg button{border:none;background:none;padding:5px 11px;font-size:12px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 56px}
+[hidden]{display:none!important}
+.wrap{max-width:1160px;margin:0 auto;padding-top:22px;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--serif);font-weight:500;margin:0;text-wrap:balance;line-height:1.15}
+h1{font-size:clamp(26px,4.6vw,36px)} h2{font-size:22px} h3{font-size:17px}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+.muted{color:var(--muted)} .small{font-size:12px} .hint{font-size:11.5px;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0} .stack.tight{gap:8px}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:560px){.row,.row3{grid-template-columns:minmax(0,1fr)}}
+.cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:920px){.cols{grid-template-columns:minmax(0,1fr)}}
+label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);min-width:0}
+input,select,textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:9px;padding:9px 11px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:90px;line-height:1.5}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;cursor:pointer}
+.btn{font-size:13.5px;font-weight:500;border-radius:10px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.link{background:none;border:none;color:var(--accent);padding:2px 4px;font-size:12.5px}
+.link.danger{color:var(--bad)}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;color:var(--muted);font-size:14px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:500;background:var(--soft);color:var(--ink);white-space:nowrap}
+.badge.lvl{background:var(--lvl-bg);color:var(--lvl-ink);letter-spacing:.04em}
+.badge.ok{background:var(--ok-bg);color:var(--ok)} .badge.warn{background:var(--warn-bg);color:var(--warn)} .badge.bad{background:var(--bad-bg);color:var(--bad)} .badge.info{background:var(--info-bg);color:var(--info)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:12.5px}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.scard{display:flex;gap:12px;align-items:center;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;color:inherit;width:100%}
+.scard:hover{border-color:var(--accent)}
+.lvlhead{display:flex;align-items:baseline;gap:10px;margin-top:6px}
+.avatar{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--soft);color:var(--accent);font-family:var(--serif);font-size:18px;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.avatar.lg{width:80px;height:80px;font-size:30px}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.panel .item{background:var(--field)}
+.item .t{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.item .acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center}
+.score{font-family:var(--serif);font-size:18px;font-variant-numeric:lining-nums tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.kpi .k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.kpi .v{font-family:var(--serif);font-size:22px;font-variant-numeric:lining-nums tabular-nums}
+.kpi .v.ok{color:var(--ok)} .kpi .v.warn{color:var(--warn)}
+.private{background:var(--priv-bg);border:1px dashed var(--priv-line);border-radius:12px;padding:14px}
+.private .eyebrow{color:var(--priv-ink)}
+.entry{border-left:2px solid var(--soft);padding:4px 0 4px 14px}
+.entry .d{font-size:11.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.empty{color:var(--muted);font-size:13px;padding:16px;border:1px dashed var(--line);border-radius:12px;text-align:center}
+.status{min-height:18px;font-size:12.5px;color:var(--muted);margin:0}
+pre.fmt{background:var(--field);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12px;white-space:pre-wrap;margin:0;overflow-x:auto}
+fieldset.group{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+fieldset.group legend{font-family:var(--serif);font-size:15px;padding:0 6px;color:var(--ink)}
+@media (max-width:560px){.item{grid-template-columns:minmax(0,1fr)}.item .acts{justify-content:flex-start}}
+
+/* calendário do aluno */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .wd{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:center;padding:4px 0}
+.cal .day{min-height:58px;border:1px solid var(--line);border-radius:9px;padding:5px 6px;background:var(--panel);text-align:left;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink)}
+.cal .day.out{visibility:hidden}
+.cal .day.today{border-color:var(--ink)}
+.cal .day .n{font-variant-numeric:tabular-nums;color:var(--muted)}
+.cal .ev{border-radius:5px;padding:1px 5px;font-size:10.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.normal{background:var(--soft);color:var(--ev-ink)}
+.ev.falta{background:var(--bad-bg);color:var(--bad);text-decoration:line-through}
+.ev.cancelada{background:var(--cancel-bg);color:var(--cancel-ink);text-decoration:line-through}
+.ev.reposicao{background:var(--info-bg);color:var(--info)}
+.ev.extra{background:var(--gold-soft);color:var(--extra-ink)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+/* agenda semanal */
+.week{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:4px}
+.wcol{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.wcol.today{border-color:var(--ink)}
+.wcol h4{margin:0;font-family:var(--serif);font-weight:500;font-size:15px}
+.wcol .date{font-size:11px;color:var(--muted)}
+.slot{border-radius:9px;padding:6px 8px;font-size:12px;text-align:left;border:1px solid transparent;width:100%;color:var(--ink)}
+.slot b{font-weight:600;font-variant-numeric:tabular-nums}
+.slot.normal{background:var(--soft)} .slot.reposicao{background:var(--info-bg)} .slot.extra{background:var(--gold-soft)}
+.slot.falta{background:var(--bad-bg);text-decoration:line-through;color:var(--bad)} .slot.cancelada{background:var(--cancel-bg);color:var(--cancel-ink);text-decoration:line-through}
+.free{font-size:11px;color:var(--ok);border:1px dashed var(--free-line);border-radius:8px;padding:4px 7px;background:var(--free-bg)}
+@media (max-width:720px){.week{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){.cal .day{min-height:46px;padding:4px}.cal .ev{font-size:0;height:7px;padding:0;border-radius:4px}}
+
+/* painel lateral */
+.sheet{position:fixed;inset:0;background:var(--overlay);display:flex;justify-content:flex-end;z-index:40}
+.sheet-inner{width:min(560px,100%);height:100%;overflow-y:auto;background:var(--bg);border-left:1px solid var(--line);
+  padding:max(18px,env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) max(18px,env(safe-area-inset-bottom,0px)) 18px;display:flex;flex-direction:column;gap:14px}
+.sheet-inner.wide{width:min(1000px,100%)}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.x{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:16px;flex:none}
+.canvasbox{width:100%;aspect-ratio:1/1;max-width:100%;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--soft)}
+.canvasbox img{display:block;width:100%;height:100%}
+
+.docthumb{display:block;width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--field);padding:0}
+.docthumb img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
+.docthumb.zip{display:grid;place-items:center;background:var(--soft)}
+.docthumb.zip span{width:64px;height:64px;border-radius:50%;border:1.5px solid var(--accent);display:grid;place-items:center;font-family:var(--serif);font-size:24px;color:var(--ink)}
+/* login */
+.login{max-width:420px;margin:8vh auto 0;width:100%}
+.login .mono{width:64px;height:64px;border-radius:50%;border:1.5px solid var(--accent);display:grid;place-items:center;font-family:var(--serif);font-size:24px;margin-bottom:6px}
+
+/* atividade (prévia) */
+.q{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
+.q .n{font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.q .p{font-size:15px}
+.opt{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--field);font-size:14px;color:var(--ink)}
+.opt.right{border-color:var(--ok);background:var(--ok-bg)} .opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.gapline{font-size:15px;line-height:2.1}
+.gapline input{display:inline-block;width:auto;min-width:90px;padding:3px 8px;margin:0 3px}
+.fix{font-size:12px;color:var(--ok);margin-left:2px}
+.instr{font-family:var(--serif);font-size:17px;padding-top:4px}
+.vocab{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.vocab div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--field)}
+.vocab b{font-family:var(--serif);font-weight:500;font-size:16px;display:block}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="bgdeco" aria-hidden="true"><i class="g"></i><i class="c"></i><i class="r"></i></div>
+<div class="wrap" id="app"></div>
+<div class="sheet" id="sheet" hidden><div class="sheet-inner" id="sheetInner" role="dialog" aria-modal="true"></div></div>
+<canvas id="cv" width="1080" height="1080" hidden></canvas>
+
+<script>
+(() => {
+"use strict";
+// ============================================================ utilidades
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const today = () => ymd(new Date());
+const fmtDate = iso => { if (!iso) return ""; const [y, m, d] = iso.slice(0, 10).split("-"); return `${d}/${m}/${y}`; };
+const fmtDM = iso => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "";
+const money = n => "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const num = s => { s = String(s ?? "").replace(/[^\d,.-]/g, ""); if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const n = parseFloat(s); return isFinite(n) ? n : 0; };
+const toMin = h => { const [a, b] = String(h || "0:0").split(":").map(Number); return a * 60 + (b || 0); };
+const toHM = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+let MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+let WD = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+let WD_FULL = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+const WEEK_ORDER = [1,2,3,4,5,6,0];
+const LEVELS = ["A1","A2","B1","B2","C1","C2"];
+const ORIGENS = ["Indicação","Instagram","WhatsApp","Google","Ex-aluno","Outro"];
+const norm = s => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’']/g, "'").replace(/[^a-z0-9' ]/g, " ").replace(/\s+/g, " ").trim();
+const words = s => (String(s).trim().match(/\S+/g) || []).length;
+const initials = n => String(n).split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]).join("").toUpperCase();
+const avatar = (a, cls = "") => `<span class="avatar ${cls}">${a.tema && a.tema.foto ? `<img src="${a.tema.foto}" alt="">` : esc(initials(a.apelido || a.nome))}</span>`;
+function confirmBtn(btn, label, fn) { btn.addEventListener("click", () => { if (!btn.dataset.c) { btn.dataset.c = 1; const old = btn.textContent; btn.textContent = label; setTimeout(() => { delete btn.dataset.c; btn.textContent = old; }, 3500); return; } fn(); }); }
+
+// ============================================================ atividades: formato de texto
+function parseActivity(text) {
+  const items = []; let cur = null;
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim(); if (!line) { cur = null; continue; }
+    if (line.startsWith("?")) { cur = { t: "mc", p: line.slice(1).trim(), o: [], c: -1 }; items.push(cur); continue; }
+    if ((line.startsWith("*") || line.startsWith("-")) && cur && cur.t === "mc") { if (line.startsWith("*")) cur.c = cur.o.length; cur.o.push(line.slice(1).trim()); continue; }
+    if (line.startsWith("_")) { items.push({ t: "gap", p: line.slice(1).trim() }); cur = null; continue; }
+    if (/^w:/i.test(line)) { const [p, m] = line.slice(2).split("|"); items.push({ t: "write", p: p.trim(), min: parseInt(m) || 0 }); cur = null; continue; }
+    if (line.startsWith(">")) { items.push({ t: "info", p: line.slice(1).trim() }); cur = null; continue; }
+  }
+  return items.filter(i => i.t !== "mc" || (i.o.length >= 2 && i.c >= 0));
+}
+const serializeActivity = items => items.map(i => i.t === "mc" ? `? ${i.p}\n` + i.o.map((o, k) => (k === i.c ? "* " : "- ") + o).join("\n")
+  : i.t === "gap" ? `_ ${i.p}` : i.t === "write" ? `W: ${i.p}${i.min ? " | " + i.min : ""}` : `> ${i.p}`).join("\n\n");
+const gapAnswers = p => [...String(p).matchAll(/\[([^\]]+)\]/g)].map(m => m[1].split("|").map(s => s.trim()));
+function itemPoints(i) { return i.t === "mc" || i.t === "tf" || i.t === "order" ? 1 : i.t === "gap" ? gapAnswers(i.p).length : i.t === "match" ? i.pairs.filter(([l, r]) => String(l).trim() && String(r).trim()).length : 0; }
+const autoTotal = t => t.itens.reduce((n, i) => n + itemPoints(i), 0) + (t.musica && t.musica.letra ? gapAnswers(t.musica.letra).length : 0);
+const hasWriting = t => t.itens.some(i => i.t === "write");
+function grade(t, resp) {
+  let ok = 0, tot = 0; const detail = {};
+  t.itens.forEach((i, k) => {
+    if (i.t === "mc") { tot++; const r = resp[k] === i.c; if (r) ok++; detail[k] = r; }
+    if (i.t === "tf") { tot++; const r = resp[k] === i.v; if (r) ok++; detail[k] = r; }
+    if (i.t === "order") { tot++; const r = norm(resp[k]) === norm(i.s); if (r) ok++; detail[k] = r; }
+    if (i.t === "gap") { const g = resp[k] || []; detail[k] = gapAnswers(i.p).map((alts, j) => { tot++; const r = alts.some(x => norm(x) === norm(g[j])); if (r) ok++; return r; }); }
+    if (i.t === "match") { const g = resp[k] || []; detail[k] = i.pairs.map(([, rgt], j) => { tot++; const r = norm(g[j]) === norm(rgt); if (r) ok++; return r; }); }
+  });
+  return { ok, tot, detail };
+}
+
+// ============================================================ dados de exemplo
+function seed() {
+  const A = (o) => Object.assign({ id: uid(), apelido: "", token: "", nivel: "A1", cidade: "", inicio: "2026-08-01", ativo: true, tel1: "", tel2: "", resp_nome: "", resp_tel: "", origem: "Indicação", indicado_por: "",
+    aulas: [], cobranca: { modo: "aula", aulas_semana: 1, valor_aula: 0, valor_mensal: 0 }, saudacao: "Hello", cor_card: "rose", mostrar_pix: true, obs_privada: "", tema: { cor: "#B88378", fonte: "Poppins", foto: "" } }, o);
+  const leticia = A({ nome: "Aluna exemplo", apelido: "Aluna", token: "aluna-a1k9", nivel: "A1", cidade: "Curitiba (PR)", inicio: "2026-09-01", tel1: "",
+    origem: "Indicação", indicado_por: "",
+    aulas: [1,2,3,4].map(d => ({ dia: d, hora: "07:30", dur: 30 })), cobranca: { modo: "aula", aulas_semana: 2, valor_aula: 75, valor_mensal: 0 },
+    obs_privada: "Exemplo de observação privada." });
+  const ex = [
+    A({ nome: "Carlos Mendes (exemplo)", apelido: "Carlos", token: "carlos-7f2q", nivel: "A2", cidade: "Curitiba (PR)", tel1: "+55 41 98888-0002", origem: "Instagram",
+      aulas: [{ dia: 2, hora: "19:00", dur: 60 }, { dia: 4, hora: "19:00", dur: 60 }], cobranca: { modo: "aula", aulas_semana: 2, valor_aula: 80, valor_mensal: 0 }, cor_card: "amarelo" }),
+    A({ nome: "Ana Beatriz Souza (exemplo)", apelido: "Bia", token: "bia-3m8x", nivel: "A1", cidade: "Ourinhos (SP)", tel1: "", resp_nome: "Mariana Souza (mãe)", resp_tel: "+55 14 97777-0003", origem: "Indicação", indicado_por: "Carlos Mendes",
+      aulas: [{ dia: 3, hora: "17:00", dur: 45 }], cobranca: { modo: "aula", aulas_semana: 1, valor_aula: 70, valor_mensal: 0 } }),
+    A({ nome: "Rafael Lima (exemplo)", apelido: "Rafa", token: "rafa-9k1d", nivel: "B2", cidade: "São Paulo (SP)", tel1: "+55 11 96666-0004", tel2: "+55 11 3333-0004", origem: "Google",
+      aulas: [{ dia: 1, hora: "12:00", dur: 60 }], cobranca: { modo: "mensal", aulas_semana: 1, valor_aula: 0, valor_mensal: 340 }, mostrar_pix: false }),
+    A({ nome: "Le Martins (exemplo)", apelido: "Le", token: "le-2p5w", nivel: "B1", cidade: "Lisboa (Portugal)", tel1: "+351 91 000 0005", origem: "Ex-aluno",
+      aulas: [{ dia: 6, hora: "09:00", dur: 60 }], cobranca: { modo: "aula", aulas_semana: 1, valor_aula: 75, valor_mensal: 0 }, saudacao: "Good morning", cor_card: "amarelo", mostrar_pix: false })
+  ];
+  const act1 = { id: "at-1", titulo: "Daily routine · Present simple", nivel: "A1", tipo: "Marcar X", pasta: "Gramática", itens: parseActivity("> Choose the correct option.\n? I ___ coffee every morning.\n* drink\n- drinks\n- drinking\n\n? She ___ to work by bus.\n- go\n* goes\n- going\n\n? What time ___ you wake up?\n* do\n- does\n- are\n\n? My brother ___ like vegetables.\n- don't\n* doesn't\n- isn't\n\n? We have English class ___ Monday.\n- in\n- at\n* on\n\n? ___ there a supermarket near your house?\n* Is\n- Are\n- Do\n\n? Which word is a day of the week?\n- January\n* Thursday\n- Summer\n\n? How do you say \"almoço\" in English?\n- breakfast\n- dinner\n* lunch") };
+  const act2 = { id: "at-2", titulo: "About me & my city", nivel: "A1", tipo: "Híbrida", pasta: "Falar de si", itens: parseActivity("> Part 1 · Complete with the verb TO BE (am / is / are).\n_ My name [is] Leticia.\n_ I [am] from Brazil.\n_ My city [is] small and quiet.\n_ My friends [are] very nice.\n\n> Part 2 · Choose the correct option.\n? Carlópolis is a ___ city.\n* small\n- smalls\n- smallest\n\n? There ___ a big lake in my city.\n- are\n* is\n- am\n\n> Part 3 · Writing.\nW: Write 5 sentences about your city. What is there? What do you like to do there? | 40") };
+  const act3 = { id: "at-3", titulo: "Music · Livin' on a Prayer (Bon Jovi)", nivel: "A1", tipo: "Música", pasta: "Músicas",
+    musica: { youtube: "https://www.youtube.com/watch?v=lDK9QqIzhwk", letra: "", vocab: [["prayer","préâr","oração, prece"],["livin' (living)","lívin","vivendo"],["halfway","réf-uêi","na metade do caminho"],["hold on","rôuld ón","aguentar firme"],["make it","mêik it","conseguir"],["take my hand","têik mai rénd","segure minha mão"]] },
+    itens: parseActivity("> Listen to the song on YouTube, then answer.\n? What is the song about?\n* A young couple with money problems who don't give up\n- A party on the beach\n- A trip to another country\n\n? What are the names of the couple in the song?\n- John and Mary\n* Tommy and Gina\n- Jon and Lisa\n\n? \"Halfway there\" means…\n- very far away\n* in the middle of the way\n- at home\n\n? \"Hold on\" means…\n* don't give up\n- go home\n- be quiet\n\n> Your turn.\nW: What do you do when life is difficult? Write 3 sentences in English. | 20") };
+  const now = new Date(), Y = now.getFullYear(), M = now.getMonth();
+  const dIn = d => ymd(new Date(Y, M, d));
+  // primeira segunda-feira do mês para uma falta de exemplo
+  let firstMon = 1; while (new Date(Y, M, firstMon).getDay() !== 1) firstMon++;
+  return {
+    alunos: [leticia, ...ex],
+    atividades: [act1, act2, act3, { id: "at-4", titulo: "Food & drinks · mixed practice", nivel: "A2", tipo: "Vocabulário", pasta: "Vocabulário", itens: [
+      { t: "info", p: "Part 1 · True or false?" }, { t: "tf", p: "Breakfast is the first meal of the day.", v: true }, { t: "tf", p: "We usually eat dinner in the morning.", v: false },
+      { t: "info", p: "Part 2 · Match the columns." }, { t: "match", p: "Match the words.", pairs: [["breakfast","café da manhã"],["lunch","almoço"],["dinner","jantar"],["snack","lanche"]] },
+      { t: "info", p: "Part 3 · Put the words in order." }, { t: "order", p: "Put the words in order.", s: "I usually drink coffee in the morning" },
+      { t: "write", p: "What is your favorite food? Write 3 sentences.", min: 20 } ] }],
+    envios: [
+      { id: uid(), aluno: leticia.id, atividade: "at-1", enviado: dIn(6), status: "feito", feito: dIn(7), respostas: { "1": 0, "2": 1, "3": 1, "4": 1, "5": 2, "6": 0, "7": 1, "8": 0 }, acertos: 6, total: 8 },
+      { id: uid(), aluno: leticia.id, atividade: "at-2", enviado: dIn(13), status: "corrigir", feito: dIn(15), respostas: { "1": ["is"], "2": ["am"], "3": ["is"], "4": ["is"], "6": 0, "7": 1, "9": "My city is small and quiet. There is a big park and many trees. I like to walk in the park in the afternoon. My house is near the center. On weekends I visit my family." }, acertos: 5, total: 6 },
+      { id: uid(), aluno: leticia.id, atividade: "at-3", enviado: today(), status: "pendente" },
+      { id: uid(), aluno: ex[0].id, atividade: "at-1", enviado: dIn(8), status: "feito", feito: dIn(9), respostas: {}, acertos: 7, total: 8 }
+    ],
+    eventos: [
+      { id: uid(), aluno: leticia.id, data: dIn(firstMon), hora: "07:30", tipo: "falta", obs: "Avisou que estava doente" },
+      { id: uid(), aluno: leticia.id, data: dIn(firstMon + 4), hora: "10:00", dur: 30, tipo: "reposicao", ref: dIn(firstMon), obs: "Reposição da falta" }
+    ],
+    diario: [
+      { id: uid(), aluno: leticia.id, data: dIn(13), assunto: "Present simple: rotina diária", notas: "Errou 3rd person (she go). Revisar -s/-es. Bom vocabulário de rotina." },
+      { id: uid(), aluno: leticia.id, data: dIn(15), assunto: "Verb TO BE + falar sobre a cidade", notas: "Descreveu a cidade bem. Pronúncia de 'lake' e 'quiet'." }
+    ],
+    mensalidades: [],
+    ajustes: {
+      pix_chave: "", pix_nome: "Fabiane Colaco", pix_cidade: "BRASIL", telefone: "+55 41 99915-8831", obrigado: "Thank you!", passo: 30,
+      disponibilidade: { 1: [["07:00","12:00"],["14:00","21:00"]], 2: [["07:00","12:00"],["14:00","21:00"]], 3: [["07:00","12:00"],["14:00","21:00"]], 4: [["07:00","12:00"],["14:00","21:00"]], 5: [["07:00","12:00"],["14:00","18:00"]], 6: [["08:00","12:00"]], 0: [] }
+    }
+  };
+}
+
+// ============================================================ armazenamento (demonstração: navegador)
+const KEY = "painel_fabi_demo_v3";
+let DB;
+const CFG = window.APP_CONFIG || {};
+const PROD = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase);
+const sb = PROD ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
+let remoteVersion = 0, saveTimer = 0, saveState = "ok";
+function starterDB() { const s = seed(); return { alunos: [], atividades: s.atividades, envios: [], eventos: [], diario: [], mensalidades: [], ajustes: Object.assign({}, s.ajustes, { pix_chave: "", semanas: {} }) }; }
+function load() { if (PROD) return; try { DB = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { DB = null; } if (!DB || !DB.ajustes) { DB = seed(); save(); } }
+function save() {
+  if (!PROD) { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) {} return; }
+  setSaveState("saving"); clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 700);
+}
+async function loadRemote() {
+  const { data, error } = await sb.from("painel").select("dados, versao").maybeSingle();
+  if (error) throw error;
+  if (data) { DB = data.dados; remoteVersion = data.versao; }
+  else { DB = starterDB(); const ins = await sb.from("painel").insert({ dados: DB, versao: 1 }).select("versao").single(); if (ins.error) throw ins.error; remoteVersion = 1; }
+  DB.ajustes.semanas = DB.ajustes.semanas || {};
+}
+async function pushRemote() {
+  const { data, error } = await sb.from("painel").update({ dados: DB, versao: remoteVersion + 1, updated_at: new Date().toISOString() }).eq("versao", remoteVersion).select("versao");
+  if (error) { setSaveState("error"); return; }
+  if (!data || !data.length) { await loadRemote(); setSaveState("conflict"); render(); return; }
+  remoteVersion = data[0].versao; setSaveState("ok");
+}
+function setSaveState(s) { saveState = s; const el = $("#saveState"); if (el) { el.textContent = ({ saving: "Salvando…", ok: "Tudo salvo", error: "Sem conexão: não salvou. Tente de novo.", conflict: "Atualizado com o que foi salvo em outro aparelho." })[s]; el.dataset.s = s; translate(el); } }
+window.addEventListener("beforeunload", e => { if (PROD && saveState === "saving") { e.preventDefault(); e.returnValue = ""; } });
+const aluno = id => DB.alunos.find(a => a.id === id);
+const atividade = id => DB.atividades.find(a => a.id === id);
+const enviosDe = id => DB.envios.filter(e => e.aluno === id).sort((a, b) => (b.enviado || "").localeCompare(a.enviado || ""));
+function stats(id) {
+  const all = enviosDe(id), done = all.filter(e => e.status !== "pendente");
+  const ac = done.reduce((s, e) => s + (e.acertos || 0), 0), tot = done.reduce((s, e) => s + (e.total || 0), 0);
+  return { feitas: done.length, pend: all.filter(e => e.status === "pendente").length, corrigir: all.filter(e => e.status === "corrigir").length, pct: tot ? Math.round(ac / tot * 100) : null };
+}
+
+// ============================================================ agenda: aulas por dia
+const perEncontro = a => { const n = a.aulas.length; return a.cobranca.modo === "mensal" ? 0 : (n ? a.cobranca.aulas_semana * a.cobranca.valor_aula / n : 0); };
+function occurrences(a, from, to) { // from/to: "YYYY-MM-DD" inclusivos
+  const out = []; const ev = DB.eventos.filter(e => e.aluno === a.id);
+  if (a.ativo !== false) for (let d = parseYmd(from); ymd(d) <= to; d.setDate(d.getDate() + 1)) {
+    const ds = ymd(d); if (ds < (a.inicio || "0000")) continue;
+    a.aulas.filter(s => s.dia === d.getDay()).forEach(s => {
+      const e = ev.find(x => x.data === ds && x.hora === s.hora && (x.tipo === "falta" || x.tipo === "cancelada"));
+      out.push({ aluno: a, data: ds, hora: s.hora, dur: s.dur, tipo: e ? e.tipo : "normal", regular: true, ev: e });
+    });
+  }
+  ev.filter(e => (e.tipo === "reposicao" || e.tipo === "extra") && e.data >= from && e.data <= to)
+    .forEach(e => out.push({ aluno: a, data: e.data, hora: e.hora, dur: e.dur || (a.aulas[0] && a.aulas[0].dur) || 60, tipo: e.tipo, regular: false, ev: e }));
+  return out.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+}
+const allOcc = (from, to) => DB.alunos.flatMap(a => occurrences(a, from, to)).sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+function monthRange(y, m0) { return [ymd(new Date(y, m0, 1)), ymd(new Date(y, m0 + 1, 0))]; }
+function billing(a, y, m0) {
+  const [f, t] = monthRange(y, m0); const occ = occurrences(a, f, t);
+  const cobradas = occ.filter(o => o.regular && o.tipo !== "cancelada"); // falta do aluno é cobrada; aula cancelada pela professora não
+  const extras = occ.filter(o => o.tipo === "extra");
+  const valor = a.cobranca.modo === "mensal" ? a.cobranca.valor_mensal : Math.round((cobradas.length + extras.length) * perEncontro(a) * 100) / 100;
+  return { datas: [...cobradas, ...extras].map(o => +o.data.slice(8)).sort((p, q) => p - q), encontros: cobradas.length + extras.length, valor, occ };
+}
+const weekKey = ds => ymd(startOfWeek(parseYmd(ds)));
+function availFor(ds) { const w = (DB.ajustes.semanas || {})[weekKey(ds)], dow = parseYmd(ds).getDay(); return ((w ? w[dow] : DB.ajustes.disponibilidade[dow]) || []); }
+function freeRanges(ds) {
+  const step = DB.ajustes.passo || 30, out = [];
+  freeSlots(ds).map(toMin).forEach(m => { const l = out[out.length - 1]; if (l && l[1] === m) l[1] = m + step; else out.push([m, m + step]); });
+  return out.map(([a, b]) => `${toHM(a)}–${toHM(b)}`);
+}
+function freeSlots(ds) {
+  const d = parseYmd(ds), av = availFor(ds), step = DB.ajustes.passo || 30;
+  const busy = allOcc(ds, ds).filter(o => o.tipo !== "falta" && o.tipo !== "cancelada").map(o => [toMin(o.hora), toMin(o.hora) + o.dur]);
+  const out = [];
+  av.forEach(([s, e]) => { for (let m = toMin(s); m + step <= toMin(e); m += step) if (!busy.some(([b1, b2]) => m < b2 && m + step > b1)) out.push(toHM(m)); });
+  return out;
+}
+
+// ============================================================ card da mensalidade (canvas)
+const PAL = { rose: { bg:"#FAF3EF", ink:"#4D3F3C", acc:"#B88378", soft:"#F1DCD3" }, amarelo: { bg:"#FCF9EE", ink:"#46423A", acc:"#CFA22B", soft:"#F8E7A8" } };
+const MONTHS_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const NUMS = ["zero","one","two","three","four","five","six","seven","eight","nine","ten"];
+const tlv = (id, v) => id + String(v.length).padStart(2, "0") + v;
+function crc16(s) { let c = 0xFFFF; for (let i = 0; i < s.length; i++) { c ^= s.charCodeAt(i) << 8; for (let j = 0; j < 8; j++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF; } return c.toString(16).toUpperCase().padStart(4, "0"); }
+const cleanPix = (s, max) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9 ]/g, "").toUpperCase().trim().slice(0, max);
+function pixKey(k) { k = String(k || "").trim(); const d = k.replace(/\D/g, ""); if (/@/.test(k)) return k.toLowerCase(); if (/^[0-9a-f]{8}-/i.test(k)) return k.toLowerCase(); if (/^\+/.test(k)) return "+" + d; if (d.length === 11 || d.length === 14) return d; return k; }
+function pixPayload(key, name, city, amount) {
+  let p = tlv("00","01") + tlv("26", tlv("00","br.gov.bcb.pix") + tlv("01", pixKey(key))) + tlv("52","0000") + tlv("53","986");
+  if (amount > 0) p += tlv("54", Number(amount).toFixed(2));
+  p += tlv("58","BR") + tlv("59", cleanPix(name, 25) || "RECEBEDOR") + tlv("60", cleanPix(city, 15) || "BRASIL") + tlv("62", tlv("05","***")) + "6304";
+  return p + crc16(p);
+}
+function drawCard(cv, d) {
+  const ctx = cv.getContext("2d"), P = PAL[d.color] || PAL.rose, W = 1080, M = 96;
+  const SERIF = '"Playfair Display", Georgia, serif', SANS = '"Poppins", system-ui, sans-serif';
+  const rgba = (h, a) => `rgba(${parseInt(h.slice(1,3),16)},${parseInt(h.slice(3,5),16)},${parseInt(h.slice(5,7),16)},${a})`;
+  const spaced = (t, x, y, sp) => { for (const ch of t) { ctx.fillText(ch, x, y); x += ctx.measureText(ch).width + sp; } };
+  const spacedW = (t, sp) => { let w = 0; for (const ch of t) w += ctx.measureText(ch).width + sp; return w - sp; };
+  const dates = d.dates || [], n = dates.length;
+  ctx.textAlign = "left"; ctx.fillStyle = P.bg; ctx.fillRect(0, 0, W, W);
+  const g = ctx.createRadialGradient(980, 140, 0, 980, 140, 460); g.addColorStop(0, P.soft); g.addColorStop(1, rgba(P.soft, 0)); ctx.fillStyle = g; ctx.fillRect(0, 0, W, W);
+  ctx.lineWidth = 1.5; ctx.strokeStyle = rgba(P.acc, .4); ctx.beginPath(); ctx.arc(960, 120, 190, 0, 7); ctx.stroke();
+  ctx.strokeStyle = rgba(P.acc, .22); ctx.beginPath(); ctx.arc(1000, 160, 190, 0, 7); ctx.stroke();
+  const bar = ctx.createLinearGradient(0, 0, W, 0); bar.addColorStop(0, P.acc); bar.addColorStop(1, P.soft); ctx.fillStyle = bar; ctx.fillRect(0, W - 8, W, 8);
+  ctx.fillStyle = P.ink; ctx.font = `500 40px ${SERIF}`; ctx.fillText("Fabiane Colaço", M, 128);
+  ctx.fillStyle = P.acc; ctx.font = `400 16px ${SANS}`; spaced("ENGLISH TEACHER", M, 162, 5.5); ctx.fillRect(M, 184, 48, 2.5);
+  ctx.fillStyle = P.ink; const gt = `${d.greeting}, ${d.name}!`; let fs = 76; ctx.font = `500 ${fs}px ${SERIF}`;
+  while (ctx.measureText(gt).width > W - 2 * M && fs > 40) { fs -= 2; ctx.font = `500 ${fs}px ${SERIF}`; } ctx.fillText(gt, M, 318);
+  ctx.fillStyle = rgba(P.ink, .62); ctx.font = `400 15px ${SANS}`; spaced(`MONTHLY TUITION  ·  ${MONTHS_EN[d.month].toUpperCase()} ${d.year}`, M, 366, 3.2);
+  ctx.fillStyle = P.ink; ctx.font = `italic 400 34px ${SERIF}`;
+  ctx.fillText(n ? `This month we have ${n <= 10 ? NUMS[n] : n} class${n === 1 ? "" : "es"}:` : "Monthly plan", M, 448);
+  const r = n > 12 ? 36 : 46, gap = n > 12 ? 14 : 22, per = Math.max(1, Math.floor((W - 2 * M + gap) / (2 * r + gap)));
+  dates.forEach((day, i) => { const cx = M + r + (i % per) * (2 * r + gap), cy = 540 + Math.floor(i / per) * (2 * r + 16);
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill(); ctx.strokeStyle = rgba(P.acc, .55); ctx.stroke();
+    ctx.fillStyle = P.ink; ctx.font = `500 ${r > 40 ? 34 : 28}px ${SERIF}`; ctx.textAlign = "center"; ctx.fillText(pad(day), cx, cy + (r > 40 ? 12 : 10)); ctx.textAlign = "left"; });
+  const rows = Math.max(1, Math.ceil(n / per)), amtTop = 540 + (rows - 1) * (2 * r + 16) + r + 70;
+  ctx.fillStyle = rgba(P.ink, .62); ctx.font = `400 15px ${SANS}`; spaced("AMOUNT", M, amtTop, 4);
+  ctx.fillStyle = P.ink; ctx.font = `500 30px ${SANS}`; ctx.fillText("R$", M, amtTop + 74); const rw = ctx.measureText("R$ ").width;
+  ctx.font = `600 84px ${SERIF}`; ctx.fillText(Number(d.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 }), M + rw + 6, amtTop + 76);
+  if (d.showPix && d.pixKey && window.qrcode) {
+    const qr = qrcode(0, "M"); qr.addData(pixPayload(d.pixKey, d.pixName, d.pixCity, d.total)); qr.make();
+    const cnt = qr.getModuleCount(), box = 250, cell = Math.floor((box - 24) / cnt), qs = cell * cnt, bx = W - M - box, by = Math.min(amtTop - 34, W - 420);
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, box, box, 18) : ctx.rect(bx, by, box, box); ctx.fill(); ctx.strokeStyle = rgba(P.acc, .35); ctx.stroke();
+    const ox = Math.round(bx + (box - qs) / 2), oy = Math.round(by + (box - qs) / 2); ctx.fillStyle = P.ink;
+    for (let a = 0; a < cnt; a++) for (let b = 0; b < cnt; b++) if (qr.isDark(a, b)) ctx.fillRect(ox + b * cell, oy + a * cell, cell, cell);
+    ctx.fillStyle = P.acc; ctx.font = `500 14px ${SANS}`; spaced("PIX", bx + box / 2 - spacedW("PIX", 3) / 2, by + box + 34, 3);
+    ctx.textAlign = "center"; ctx.fillStyle = P.ink; ctx.font = `400 20px ${SANS}`; ctx.fillText(d.pixKey, bx + box / 2, by + box + 64); ctx.textAlign = "left";
+  }
+  ctx.fillStyle = P.ink; ctx.font = `italic 400 34px ${SERIF}`; ctx.fillText(d.thanks || "Thank you!", M, W - 150);
+  ctx.fillStyle = rgba(P.ink, .7); ctx.font = `italic 400 22px ${SERIF}`; ctx.fillText("Your voice, in another language.", M, W - 86);
+  ctx.fillStyle = rgba(P.ink, .55); ctx.font = `400 14px ${SANS}`; const foot = `ONLINE CLASSES${d.phone ? "  ·  " + d.phone : ""}`; spaced(foot, W - M - spacedW(foot, 2.6), W - 86, 2.6);
+}
+function cardMessage(d) {
+  const l = d.dates.map(pad), n = l.length, j = n > 1 ? l.slice(0, -1).join(", ") + " and " + l[n - 1] : (l[0] || "");
+  let t = n ? `${d.greeting} ${d.name}!\n\nThis month we have ${pad(n)} class${n === 1 ? "" : "es"} on ${j}. The amount is R$ ${Number(d.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`
+            : `${d.greeting} ${d.name}!\n\nThe amount for this month is R$ ${Number(d.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`;
+  if (d.showPix && d.pixKey) t += `\nMy Pix: ${d.pixKey}`;
+  return t + `\n\n${d.thanks || "Thank you!"}`;
+}
+
+// ============================================================ estado e navegação
+const now = new Date();
+const UI = { tab: "agenda", view: null, levelFilter: "todos", search: "", finY: now.getFullYear(), finM: now.getMonth(), weekStart: startOfWeek(new Date()), calY: now.getFullYear(), calM: now.getMonth() };
+function startOfWeek(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return x; }
+const app = $("#app");
+let logged = false; try { logged = sessionStorage.getItem("fabi_logged") === "1"; } catch (e) {}
+function go(tab, view = null) { UI.tab = tab; UI.view = view; render(); window.scrollTo(0, 0); }
+function render() { if (!logged) return vLogin(); closeSheet(true);
+  const V = UI.view ? { aluno: vAluno, editor: vEditor, corrigir: vCorrigir, form: vAlunoForm }[UI.view.name] : { agenda: vAgenda, alunos: vAlunos, financeiro: vFinanceiro, atividades: vAtividades, correcoes: vCorrecoes, documentos: vDocumentos, ajustes: vAjustes }[UI.tab];
+  V(); translate(document.body); }
+
+function shell(inner) {
+  const nCorr = DB.envios.filter(e => e.status === "corrigir").length;
+  const tabs = [["agenda","Agenda"],["alunos","Alunos"],["financeiro","Financeiro"],["atividades","Atividades"],["correcoes", `Correções${nCorr ? ` (${nCorr})` : ""}`],["documentos","Documentos"],["ajustes","Ajustes"]];
+  app.innerHTML = `
+    <header class="top"><div><p class="eyebrow">Fabiane Colaço · English Teacher</p><h1>Painel da professora</h1></div>
+      <div class="btns">${PROD ? `<span class="small muted" id="saveState" role="status" aria-live="polite"></span>` : ""}<span class="small muted">${DB.alunos.filter(a => a.ativo !== false).length} alunos ativos</span>${togglesHtml()}<button class="btn sm" id="logout">Sair</button></div></header>
+    ${PROD ? "" : `<p class="small" style="margin:0;padding:8px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn)">Demonstração com alunos de exemplo. Os dados ficam só neste navegador.</p>`}
+    <nav class="tabs" role="tablist">${tabs.map(([t, l]) => `<button class="tab" role="tab" data-tab="${t}" aria-selected="${UI.tab === t}">${l}</button>`).join("")}</nav>
+    ${inner}`;
+  $$(".tab").forEach(b => b.addEventListener("click", () => go(b.dataset.tab)));
+  bindToggles();
+  $("#logout").addEventListener("click", async () => { if (PROD) await sb.auth.signOut(); logged = false; try { sessionStorage.removeItem("fabi_logged"); } catch (e) {} render(); });
+  if (PROD) setSaveState(saveState);
+}
+
+// ============================================================ painel lateral
+const sheet = $("#sheet"), sheetInner = $("#sheetInner");
+let lastFocus = null;
+function openSheet(html, wide = false) { lastFocus = document.activeElement; sheetInner.className = "sheet-inner" + (wide ? " wide" : ""); sheetInner.innerHTML = html; translate(sheetInner); sheet.hidden = false; document.body.style.overflow = "hidden"; const x = $(".x", sheetInner); if (x) { x.addEventListener("click", () => closeSheet()); x.focus(); } }
+function closeSheet(silent) { if (sheet.hidden) return; sheet.hidden = true; document.body.style.overflow = ""; sheetInner.innerHTML = ""; if (!silent && lastFocus) lastFocus.focus(); }
+sheet.addEventListener("click", e => { if (e.target === sheet) closeSheet(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !sheet.hidden) closeSheet(); });
+
+// ============================================================ LOGIN
+function vLogin() {
+  app.innerHTML = `
+    <div class="btns" style="justify-content:flex-end">${togglesHtml()}</div>
+    <form class="panel stack login" id="loginForm" style="margin-top:4vh">
+      <div class="mono" aria-hidden="true">F<i style="font-weight:400;color:var(--accent)">c</i></div>
+      <div><p class="eyebrow">Teacher Fabi</p><h1 style="font-size:28px">Entrar no painel</h1></div>
+      <label for="lEmail">E-mail<input id="lEmail" type="email" autocomplete="username" value="${PROD ? "" : "fabiane@exemplo.com"}" required></label>
+      <label for="lPass">Senha<input id="lPass" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary" type="submit">Entrar</button>
+      ${PROD ? "" : `<p class="hint" style="margin:0">Demonstração: a senha é <b>fabi2026</b>. No site de verdade, a senha é a que ela criar, e só a conta dela entra.</p>`}
+      <p class="status" id="lStatus" role="status" aria-live="polite"></p>
+    </form>`;
+  (PROD ? $("#lEmail") : $("#lPass")).focus(); bindToggles();
+  $("#loginForm").addEventListener("submit", async e => { e.preventDefault();
+    const st = $("#lStatus"), say = t => { st.textContent = t; translate(st); };
+    if (!PROD) { if ($("#lPass").value !== "fabi2026") { say("Senha incorreta. Tente de novo."); return; } logged = true; try { sessionStorage.setItem("fabi_logged", "1"); } catch (err) {} render(); return; }
+    say("Entrando…");
+    const { error } = await sb.auth.signInWithPassword({ email: $("#lEmail").value.trim(), password: $("#lPass").value });
+    if (error) { say(/invalid/i.test(error.message) ? "E-mail ou senha incorretos." : "Não consegui entrar agora. Confira a internet e tente de novo."); return; }
+    try { await loadRemote(); logged = true; render(); } catch (err) { say("Entrei, mas não consegui carregar os dados. Recarregue a página."); }
+  });
+}
+
+// ============================================================ AGENDA
+function vAgenda() {
+  const ws = UI.weekStart, days = [...Array(7)].map((_, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d; });
+  const from = ymd(days[0]), to = ymd(days[6]), occ = allOcc(from, to), td = today();
+  const hours = occ.filter(o => o.tipo !== "falta" && o.tipo !== "cancelada").reduce((s, o) => s + o.dur, 0);
+  shell(`
+    <div class="top"><div class="btns"><button class="btn sm" id="wPrev" aria-label="Semana anterior">‹</button>
+      <h2 style="font-size:20px">${fmtDM(from)} a ${fmtDM(to)}</h2><button class="btn sm" id="wNext" aria-label="Próxima semana">›</button><button class="btn sm" id="wToday">Hoje</button></div>
+      <div class="btns"><span class="badge">${occ.filter(o => o.tipo !== "falta" && o.tipo !== "cancelada").length} aulas · ${Math.round(hours / 6) / 10} h</span>
+        <span class="badge ${(DB.ajustes.semanas || {})[from] ? "info" : ""}">${(DB.ajustes.semanas || {})[from] ? "Disponibilidade só desta semana" : "Disponibilidade padrão"}</span>
+        <button class="btn sm" id="wAvail">Editar disponibilidade desta semana</button>
+        <button class="btn sm ${UI.showFree ? "on" : ""}" id="wFree" aria-pressed="${!!UI.showFree}">Mostrar horários livres</button></div></div>
+    <div class="legend"><span><i style="background:var(--soft)"></i>Aula</span><span><i style="background:var(--info-bg)"></i>Reposição</span><span><i style="background:var(--gold-soft)"></i>Extra</span><span><i style="background:var(--bad-bg)"></i>Falta</span><span><i style="background:var(--cancel-bg)"></i>Cancelada</span></div>
+    <div class="week">${days.map(d => { const ds = ymd(d), list = occ.filter(o => o.data === ds), free = UI.showFree ? freeRanges(ds) : [];
+      return `<section class="wcol ${ds === td ? "today" : ""}" aria-label="${WD_FULL[d.getDay()]} ${fmtDate(ds)}">
+        <div><h4>${WD_FULL[d.getDay()]}</h4><div class="date">${fmtDate(ds)}</div></div>
+        ${list.map(o => `<button class="slot ${o.tipo}" data-occ="${o.aluno.id}|${o.data}|${o.hora}|${o.tipo}"><b>${o.hora}</b> · ${esc(o.aluno.apelido || o.aluno.nome)}<br><span class="small muted">${o.dur} min${o.tipo !== "normal" ? " · " + ({ falta: "falta", cancelada: "cancelada", reposicao: "reposição", extra: "extra" })[o.tipo] : ""}</span></button>`).join("")}
+        ${!list.length && !free.length ? `<span class="hint">Sem aulas</span>` : ""}
+        ${free.length ? `<div class="stack tight" style="gap:4px"><span class="hint">Livre</span>${free.map(h => `<span class="free">${h}</span>`).join("")}</div>` : ""}
+      </section>`; }).join("")}</div>
+    <p class="hint">Toque numa aula para marcar falta, cancelar ou remarcar. Os horários livres vêm da sua disponibilidade em <b>Ajustes</b>.</p>`);
+  $("#wPrev").addEventListener("click", () => { UI.weekStart.setDate(UI.weekStart.getDate() - 7); render(); });
+  $("#wNext").addEventListener("click", () => { UI.weekStart.setDate(UI.weekStart.getDate() + 7); render(); });
+  $("#wToday").addEventListener("click", () => { UI.weekStart = startOfWeek(new Date()); render(); });
+  $("#wFree").addEventListener("click", () => { UI.showFree = !UI.showFree; render(); });
+  $("#wAvail").addEventListener("click", () => openWeekAvail(from, days));
+  $$("[data-occ]").forEach(b => b.addEventListener("click", () => openOccurrence(b.dataset.occ)));
+}
+function openWeekAvail(from, days) {
+  const custom = (DB.ajustes.semanas || {})[from];
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">${fmtDM(ymd(days[0]))} a ${fmtDM(ymd(days[6]))}</p><h2>Disponibilidade desta semana</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <p class="small muted" style="margin:0">Mudanças aqui valem só para esta semana. A próxima continua com o seu padrão (aba Ajustes).</p>
+    <form class="stack" id="waForm">${days.map(d => { const ds = ymd(d); return `<div class="item" style="align-items:start"><div class="stack tight"><b style="font-weight:500">${WD_FULL[d.getDay()]} <span class="small muted">${fmtDM(ds)}</span></b>
+      <div class="stack tight" data-day="${d.getDay()}">${availFor(ds).map(([a, b]) => rangeRow(a, b)).join("")}</div></div>
+      <div class="acts"><button type="button" class="btn sm" data-add="${d.getDay()}">+ Faixa</button></div></div>`; }).join("")}
+      <div class="btns"><button class="btn primary" type="submit">Salvar só para esta semana</button>${custom ? `<button type="button" class="btn" id="waReset">Voltar ao padrão</button>` : ""}</div></form>`);
+  const bindRm = () => $$("[data-rmr]", sheetInner).forEach(b => b.onclick = () => b.closest(".rr").remove());
+  $$("[data-add]", sheetInner).forEach(b => b.addEventListener("click", () => { $(`[data-day="${b.dataset.add}"]`, sheetInner).insertAdjacentHTML("beforeend", rangeRow("08:00", "12:00")); bindRm(); })); bindRm();
+  $("#waForm").addEventListener("submit", e => { e.preventDefault(); const out = {};
+    days.forEach(d => out[d.getDay()] = $$(`[data-day="${d.getDay()}"] .rr`, sheetInner).map(r => [$("input[data-s]", r).value, $("input[data-e]", r).value]).filter(([a, b]) => a && b && a < b));
+    DB.ajustes.semanas = DB.ajustes.semanas || {}; DB.ajustes.semanas[from] = out; save(); closeSheet(true); UI.showFree = true; render(); });
+  if ($("#waReset")) $("#waReset").addEventListener("click", () => { delete DB.ajustes.semanas[from]; save(); closeSheet(true); render(); });
+}
+function findOcc(key) { const [id, data, hora, tipo] = key.split("|"); const a = aluno(id); return occurrences(a, data, data).find(o => o.hora === hora && o.tipo === tipo); }
+function openOccurrence(key, after) {
+  const o = findOcc(key); if (!o) return; const a = o.aluno;
+  const refresh = () => { closeSheet(true); after ? after() : render(); };
+  openSheet(`
+    <div class="sheet-head"><div><p class="eyebrow">${WD_FULL[parseYmd(o.data).getDay()]} · ${fmtDate(o.data)} · ${o.hora}</p><h2>${esc(a.nome)}</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <div class="btns"><span class="badge lvl">${a.nivel}</span><span class="badge">${o.dur} min</span>
+      <span class="badge ${o.tipo === "falta" ? "bad" : o.tipo === "reposicao" ? "info" : o.tipo === "extra" ? "warn" : ""}">${({ normal: "Aula normal", falta: "Falta do aluno", cancelada: "Cancelada pela professora", reposicao: "Reposição", extra: "Aula extra" })[o.tipo]}</span></div>
+    ${o.ev && o.ev.obs ? `<p class="small muted" style="margin:0">${esc(o.ev.obs)}</p>` : ""}
+    ${o.tipo === "normal" ? `
+      <section class="panel stack tight"><h3>O que aconteceu?</h3>
+        <label>Observação (opcional)<input id="oObs" placeholder="Ex.: avisou que estava doente"></label>
+        <div class="btns"><button class="btn" id="oFalta">✕ Marcar falta</button><button class="btn" id="oCanc">Cancelar aula (eu cancelei / feriado)</button></div>
+        <p class="hint" style="margin:0">Falta do aluno continua na cobrança do mês. Aula cancelada por você sai da cobrança.</p></section>`
+      : o.regular ? `<div class="btns"><button class="btn" id="oUndo">Desfazer (voltar para aula normal)</button></div>`
+      : `<div class="btns"><button class="btn" id="oDel">Apagar ${o.tipo === "extra" ? "aula extra" : "reposição"}</button></div>`}
+    ${o.tipo === "falta" || o.tipo === "cancelada" ? remarcarHtml(o) : ""}
+    <div class="btns"><button class="btn sm" id="oProfile">Abrir perfil do aluno</button></div>`);
+  const mk = tipo => { DB.eventos.push({ id: uid(), aluno: a.id, data: o.data, hora: o.hora, tipo, obs: ($("#oObs") || {}).value || "" }); save(); refresh(); };
+  if ($("#oFalta")) $("#oFalta").addEventListener("click", () => mk("falta"));
+  if ($("#oCanc")) $("#oCanc").addEventListener("click", () => mk("cancelada"));
+  if ($("#oUndo")) $("#oUndo").addEventListener("click", () => { DB.eventos = DB.eventos.filter(e => e !== o.ev && e.id !== o.ev.id); save(); refresh(); });
+  if ($("#oDel")) $("#oDel").addEventListener("click", () => { DB.eventos = DB.eventos.filter(e => e.id !== o.ev.id); save(); refresh(); });
+  $("#oProfile").addEventListener("click", () => { closeSheet(true); go("alunos", { name: "aluno", id: a.id }); });
+  bindRemarcar(o, refresh);
+}
+function remarcarHtml(o) {
+  const done = DB.eventos.find(e => e.tipo === "reposicao" && e.aluno === o.aluno.id && e.ref === o.data);
+  if (done) return `<section class="panel stack tight"><h3>Reposição marcada</h3><p style="margin:0">${WD_FULL[parseYmd(done.data).getDay()]}, ${fmtDate(done.data)} às ${done.hora}</p></section>`;
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  return `<section class="panel stack tight"><h3>Remarcar (opcional)</h3>
+    <div class="row"><label>Dia<input type="date" id="rData" value="${ymd(d)}"></label><label>Duração (min)<input type="number" id="rDur" value="${o.dur}" min="15" step="15"></label></div>
+    <div class="stack tight"><span class="hint">Horários livres nesse dia</span><div class="chips" id="rFree"></div></div>
+    <label>Ou digite o horário<input type="time" id="rHora"></label>
+    <div class="btns"><button class="btn primary" id="rSave">Marcar reposição</button></div><p class="status" id="rStatus"></p></section>`;
+}
+function bindRemarcar(o, refresh) {
+  if (!$("#rData")) return;
+  const fill = () => { const fs = freeSlots($("#rData").value); $("#rFree").innerHTML = fs.length ? fs.map(h => `<button type="button" class="chip" data-h="${h}" aria-pressed="false">${h}</button>`).join("") : `<span class="hint">Nenhum horário livre nesse dia.</span>`;
+    $$("#rFree [data-h]").forEach(b => b.addEventListener("click", () => { $$("#rFree [data-h]").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rHora").value = b.dataset.h; })); };
+  $("#rData").addEventListener("change", fill); fill();
+  $("#rSave").addEventListener("click", () => { const h = $("#rHora").value; if (!h) { $("#rStatus").textContent = "Escolha um horário livre ou digite um."; return; }
+    DB.eventos.push({ id: uid(), aluno: o.aluno.id, data: $("#rData").value, hora: h, dur: +$("#rDur").value || o.dur, tipo: "reposicao", ref: o.data, obs: `Reposição da aula de ${fmtDate(o.data)}` }); save(); refresh(); });
+}
+
+// ============================================================ ALUNOS
+function vAlunos() {
+  const q = norm(UI.search);
+  const list = DB.alunos.filter(a => (!q || norm(a.nome + " " + a.apelido).includes(q)) && (UI.levelFilter === "todos" || a.nivel === UI.levelFilter)).sort((x, y) => x.nome.localeCompare(y.nome, "pt-BR"));
+  const byLvl = LEVELS.map(l => [l, list.filter(a => a.nivel === l)]).filter(([, v]) => v.length);
+  const counts = Object.fromEntries(LEVELS.map(l => [l, DB.alunos.filter(a => a.nivel === l).length]));
+  const card = a => { const s = stats(a.id); const sl = a.aulas.map(x => `${WD[x.dia]} ${x.hora}`).join(" · ");
+    return `<button class="scard" data-id="${a.id}">${avatar(a)}<span class="stack tight" style="gap:3px;min-width:0">
+      <span style="font-weight:500">${esc(a.nome)}</span>
+      <span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sl || "Sem horário"}</span>
+      <span class="btns" style="gap:5px"><span class="badge lvl">${a.nivel}</span>${a.ativo === false ? `<span class="badge bad">Inativo</span>` : ""}${s.corrigir ? `<span class="badge warn">${s.corrigir} p/ corrigir</span>` : ""}${s.pct !== null ? `<span class="badge">${s.pct}% acertos</span>` : ""}</span></span></button>`; };
+  shell(`
+    <div class="top"><div class="btns"><button class="btn primary" id="newStudent">+ Novo aluno</button><input id="search" placeholder="Buscar aluno…" value="${esc(UI.search)}" style="max-width:240px" aria-label="Buscar aluno"></div>
+      <div class="chips" role="group" aria-label="Filtrar por nível"><button class="chip" data-l="todos" aria-pressed="${UI.levelFilter === "todos"}">Todos (${DB.alunos.length})</button>
+        ${LEVELS.map(l => `<button class="chip" data-l="${l}" aria-pressed="${UI.levelFilter === l}">${l} (${counts[l]})</button>`).join("")}</div></div>
+    ${byLvl.map(([l, v]) => `<div class="lvlhead"><h3>Nível ${l}</h3><span class="small muted">${v.length} aluno${v.length > 1 ? "s" : ""}</span></div><div class="grid-cards">${v.map(card).join("")}</div>`).join("") || `<div class="empty">Nenhum aluno encontrado.</div>`}`);
+  $("#newStudent").addEventListener("click", () => go("alunos", { name: "form" }));
+  const s = $("#search"); s.addEventListener("input", () => { UI.search = s.value; const pos = s.selectionStart; render(); const n = $("#search"); n.focus(); n.setSelectionRange(pos, pos); });
+  $$("[data-l]").forEach(b => b.addEventListener("click", () => { UI.levelFilter = b.dataset.l; render(); }));
+  $$(".scard").forEach(c => c.addEventListener("click", () => go("alunos", { name: "aluno", id: c.dataset.id })));
+}
+
+function vAlunoForm() {
+  const ed = UI.view.id ? aluno(UI.view.id) : null;
+  const a = ed || { nome: "", apelido: "", nivel: "A1", cidade: "", inicio: today(), ativo: true, tel1: "", tel2: "", resp_nome: "", resp_tel: "", origem: "Indicação", indicado_por: "",
+    aulas: [{ dia: 1, hora: "18:00", dur: 60 }], cobranca: { modo: "aula", aulas_semana: 1, valor_aula: 0, valor_mensal: 0 }, saudacao: "Hello", cor_card: "rose", mostrar_pix: true, obs_privada: "" };
+  let slots = a.aulas.map(s => ({ ...s }));
+  shell(`
+    <button class="link" id="back" style="align-self:flex-start">‹ ${ed ? "Voltar ao perfil" : "Alunos"}</button>
+    <form class="stack" id="sForm" style="max-width:860px">
+      <h2>${ed ? "Editar aluno" : "Novo aluno"}</h2>
+      <fieldset class="group"><legend>Quem é</legend>
+        <div class="row"><label>Nome completo *<input id="fNome" value="${esc(a.nome)}" required></label><label>Como chamar (no card e no portal)<input id="fApelido" value="${esc(a.apelido)}" placeholder="Ex.: Leti"></label></div>
+        <div class="row3"><label>Nível<select id="fNivel">${LEVELS.map(l => `<option ${l === a.nivel ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label>Cidade / país<input id="fCidade" value="${esc(a.cidade)}" placeholder="Ex.: Carlópolis (PR)"></label><label>Início das aulas<input type="date" id="fInicio" value="${a.inicio}"></label></div>
+        <label class="small" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="fAtivo" style="width:auto" ${a.ativo !== false ? "checked" : ""}> Aluno ativo (aparece na agenda e no financeiro)</label>
+      </fieldset>
+      <fieldset class="group"><legend>Contato</legend>
+        <div class="row"><label>Telefone / WhatsApp 1 <span class="hint">(opcional)</span><input id="fTel1" inputmode="tel" value="${esc(a.tel1)}" placeholder="+55 41 9…"></label>
+          <label>Telefone 2 <span class="hint">(opcional)</span><input id="fTel2" inputmode="tel" value="${esc(a.tel2)}"></label></div>
+        <div class="row"><label>Responsável <span class="hint">(se for menor de idade)</span><input id="fResp" value="${esc(a.resp_nome)}" placeholder="Nome e parentesco"></label>
+          <label>Telefone do responsável<input id="fRespTel" inputmode="tel" value="${esc(a.resp_tel)}"></label></div>
+      </fieldset>
+      <fieldset class="group"><legend>Como chegou até você</legend>
+        <div class="row"><label>Origem<select id="fOrigem">${ORIGENS.map(o => `<option ${o === a.origem ? "selected" : ""}>${o}</option>`).join("")}</select></label>
+          <label>Indicado por <span class="hint">(se foi indicação)</span><input id="fIndic" value="${esc(a.indicado_por)}"></label></div>
+      </fieldset>
+      <fieldset class="group"><legend>Aulas na semana</legend>
+        <div class="list" id="slotList"></div>
+        <div class="btns"><button type="button" class="btn sm" id="addSlot">+ Adicionar horário</button><span class="hint" id="slotSum"></span></div>
+      </fieldset>
+      <fieldset class="group"><legend>Cobrança</legend>
+        <div class="chips" role="radiogroup" aria-label="Modo de cobrança"><button type="button" class="chip" data-m="aula">Por aula</button><button type="button" class="chip" data-m="mensal">Valor fixo mensal</button></div>
+        <div class="row3" id="byClass"><label>Aulas cobradas por semana<input id="fCobSem" type="number" min="0" step="0.5" value="${a.cobranca.aulas_semana}"></label>
+          <label>Valor por aula (R$)<input id="fValAula" inputmode="decimal" value="${String(a.cobranca.valor_aula).replace(".", ",")}"></label><div class="stack tight" style="justify-content:flex-end"><span class="hint" id="perEnc"></span></div></div>
+        <div class="row" id="byMonth"><label>Valor mensal (R$)<input id="fValMes" inputmode="decimal" value="${String(a.cobranca.valor_mensal).replace(".", ",")}"></label></div>
+        <p class="hint" style="margin:0" id="calcHint"></p>
+      </fieldset>
+      <fieldset class="group"><legend>Card da mensalidade</legend>
+        <div class="row3"><label>Saudação<select id="fSaud">${["Hello","Hi","Good morning","Good afternoon"].map(x => `<option ${x === a.saudacao ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+          <label>Cor<select id="fCor"><option value="rose" ${a.cor_card === "rose" ? "selected" : ""}>Rosé</option><option value="amarelo" ${a.cor_card === "amarelo" ? "selected" : ""}>Amarelo</option></select></label>
+          <label class="small" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink);align-self:end;padding-bottom:10px"><input type="checkbox" id="fPix" style="width:auto" ${a.mostrar_pix ? "checked" : ""}> Mostrar Pix</label></div>
+      </fieldset>
+      <fieldset class="group"><legend>Observação privada</legend>
+        <textarea id="fObs" placeholder="Objetivos, dificuldades, combinados… (o aluno não vê)">${esc(a.obs_privada)}</textarea>
+      </fieldset>
+      <div class="btns"><button class="btn primary" type="submit">${ed ? "Salvar alterações" : "Cadastrar aluno"}</button><button class="btn" type="button" id="cancel">Cancelar</button></div>
+      <p class="status" id="sStatus" role="status"></p>
+    </form>`);
+  let modo = a.cobranca.modo;
+  const drawSlots = () => {
+    $("#slotList").innerHTML = slots.map((s, i) => `<div class="item"><div class="row3" style="gap:8px">
+      <label>Dia<select data-i="${i}" data-k="dia">${WEEK_ORDER.map(d => `<option value="${d}" ${d === s.dia ? "selected" : ""}>${WD_FULL[d]}</option>`).join("")}</select></label>
+      <label>Horário<input type="time" data-i="${i}" data-k="hora" value="${s.hora}"></label>
+      <label>Duração (min)<input type="number" min="15" step="15" data-i="${i}" data-k="dur" value="${s.dur}"></label></div>
+      <div class="acts"><button type="button" class="link danger" data-rm="${i}">Remover</button></div></div>`).join("") || `<div class="empty">Nenhum horário. Adicione os dias e horários fixos do aluno.</div>`;
+    $$("#slotList [data-k]").forEach(el => el.addEventListener("input", () => { const s = slots[el.dataset.i]; s[el.dataset.k] = el.dataset.k === "hora" ? el.value : +el.value; calc(); }));
+    $$("#slotList [data-rm]").forEach(b => b.addEventListener("click", () => { slots.splice(+b.dataset.rm, 1); drawSlots(); calc(); }));
+    calc();
+  };
+  const calc = () => {
+    $$("[data-m]").forEach(b => b.setAttribute("aria-pressed", b.dataset.m === modo));
+    $("#byClass").hidden = modo !== "aula"; $("#byMonth").hidden = modo !== "mensal";
+    const tmp = { aulas: slots, ativo: true, inicio: "0000", id: "_tmp", cobranca: { modo, aulas_semana: num($("#fCobSem").value), valor_aula: num($("#fValAula").value), valor_mensal: num($("#fValMes").value) } };
+    const mins = slots.reduce((s, x) => s + (+x.dur || 0), 0);
+    $("#slotSum").textContent = slots.length ? `${slots.length} encontro${slots.length > 1 ? "s" : ""} por semana · ${mins} min no total` : "";
+    $("#perEnc").textContent = modo === "aula" && slots.length ? `= ${money(perEncontro(tmp))} por encontro` : "";
+    const b = billing(tmp, now.getFullYear(), now.getMonth());
+    $("#calcHint").textContent = `Em ${MONTHS[now.getMonth()].toLowerCase()}: ${b.encontros} encontros → ${money(b.valor)}. O valor de cada mês é calculado pelo calendário (quantas aulas caem naquele mês).`;
+  };
+  $$("[data-m]").forEach(b => b.addEventListener("click", () => { modo = b.dataset.m; calc(); }));
+  ["fCobSem", "fValAula", "fValMes"].forEach(id => $("#" + id).addEventListener("input", calc));
+  $("#addSlot").addEventListener("click", () => { const last = slots[slots.length - 1]; slots.push({ dia: last ? (last.dia + 1) % 7 : 1, hora: last ? last.hora : "18:00", dur: last ? last.dur : 60 }); drawSlots(); });
+  drawSlots();
+  const back = () => ed ? go("alunos", { name: "aluno", id: ed.id }) : go("alunos");
+  $("#back").addEventListener("click", back); $("#cancel").addEventListener("click", back);
+  $("#sForm").addEventListener("submit", e => { e.preventDefault();
+    const nome = $("#fNome").value.trim(); if (!nome) { $("#sStatus").textContent = "Digite o nome do aluno."; return; }
+    const data = { nome, apelido: $("#fApelido").value.trim(), nivel: $("#fNivel").value, cidade: $("#fCidade").value.trim(), inicio: $("#fInicio").value || today(), ativo: $("#fAtivo").checked,
+      tel1: $("#fTel1").value.trim(), tel2: $("#fTel2").value.trim(), resp_nome: $("#fResp").value.trim(), resp_tel: $("#fRespTel").value.trim(), origem: $("#fOrigem").value, indicado_por: $("#fIndic").value.trim(),
+      aulas: slots.filter(s => s.hora).sort((x, y) => WEEK_ORDER.indexOf(x.dia) - WEEK_ORDER.indexOf(y.dia) || x.hora.localeCompare(y.hora)),
+      cobranca: { modo, aulas_semana: num($("#fCobSem").value), valor_aula: num($("#fValAula").value), valor_mensal: num($("#fValMes").value) },
+      saudacao: $("#fSaud").value, cor_card: $("#fCor").value, mostrar_pix: $("#fPix").checked, obs_privada: $("#fObs").value };
+    if (ed) Object.assign(ed, data);
+    else { const slug = norm(data.apelido || nome).split(" ")[0] || "aluno"; DB.alunos.push(Object.assign({ id: uid(), token: slug + "-" + Math.random().toString(36).slice(2, 6), tema: { cor: "#B88378", fonte: "Poppins", foto: "" } }, data)); }
+    save(); go("alunos", { name: "aluno", id: ed ? ed.id : DB.alunos[DB.alunos.length - 1].id });
+  });
+  $("#fNome").focus();
+}
+
+function vAluno() {
+  const a = aluno(UI.view.id); if (!a) return go("alunos");
+  const s = stats(a.id), b = billing(a, UI.calY, UI.calM), env = enviosDe(a.id), sent = new Set(env.map(e => e.atividade));
+  const link = `${location.origin}${location.pathname}#aluno-${a.token}`;
+  const first = new Date(UI.calY, UI.calM, 1), lead = (first.getDay() + 6) % 7, last = new Date(UI.calY, UI.calM + 1, 0).getDate(), td = today();
+  const faltas = b.occ.filter(o => o.tipo === "falta").length, repos = b.occ.filter(o => o.tipo === "reposicao").length;
+  shell(`
+    <button class="link" id="back" style="align-self:flex-start">‹ Todos os alunos</button>
+    <section class="panel" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
+      ${avatar(a, "lg")}
+      <div class="stack tight" style="flex:1;min-width:230px">
+        <h2>${esc(a.nome)}</h2>
+        <div class="btns" style="gap:6px"><span class="badge lvl">${a.nivel}</span>${a.ativo === false ? `<span class="badge bad">Inativo</span>` : ""}<span class="badge">${esc(a.cidade || "Cidade não informada")}</span>
+          ${a.aulas.map(x => `<span class="badge">${WD[x.dia]} ${x.hora} · ${x.dur}min</span>`).join("")}</div>
+        <div class="small muted">${[a.tel1, a.tel2].filter(Boolean).map(esc).join(" · ") || "Sem telefone"}${a.resp_nome ? ` · Resp.: ${esc(a.resp_nome)} ${esc(a.resp_tel)}` : ""}</div>
+        <div class="small muted">Chegou por: ${esc(a.origem)}${a.indicado_por ? ` (${esc(a.indicado_por)})` : ""} · aluno desde ${fmtDate(a.inicio)}</div>
+      </div>
+      <div class="btns"><button class="btn sm" id="edit">Editar dados</button><button class="btn sm" id="copyLink">Copiar link do aluno</button></div>
+    </section>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Mensalidade ${MONTHS[UI.calM].toLowerCase()}</div><div class="v">${money(b.valor)}</div><div class="hint">${a.cobranca.modo === "mensal" ? "valor fixo mensal" : `${b.encontros} encontros × ${money(perEncontro(a))}`}</div></div>
+      <div class="kpi"><div class="k">Faltas no mês</div><div class="v ${faltas ? "warn" : ""}">${faltas}</div><div class="hint">${repos === 1 ? "1 reposição marcada" : `${repos} reposições marcadas`}</div></div>
+      <div class="kpi"><div class="k">Acertos</div><div class="v">${s.pct === null ? "—" : s.pct + "%"}</div><div class="hint">${s.feitas} atividade${s.feitas === 1 ? "" : "s"} feita${s.feitas === 1 ? "" : "s"}</div></div>
+    </div>
+    <div class="cols">
+      <div class="stack">
+        <section class="panel stack">
+          <div class="top"><h3>Calendário de aulas</h3><div class="btns"><button class="btn sm" id="cPrev" aria-label="Mês anterior">‹</button><b style="font-weight:500;min-width:120px;text-align:center">${MONTHS[UI.calM]} ${UI.calY}</b><button class="btn sm" id="cNext" aria-label="Próximo mês">›</button></div></div>
+          <div class="cal" role="grid" aria-label="Calendário de ${MONTHS[UI.calM]}">
+            ${WD.map((_, i) => `<div class="wd">${WD[WEEK_ORDER[i]]}</div>`).join("")}
+            ${[...Array(lead)].map(() => `<div class="day out"></div>`).join("")}
+            ${[...Array(last)].map((_, i) => { const ds = ymd(new Date(UI.calY, UI.calM, i + 1)), ev = b.occ.filter(o => o.data === ds);
+              return `<div class="day ${ds === td ? "today" : ""}"><span class="n">${i + 1}</span>${ev.map(o => `<button class="ev ${o.tipo}" data-occ="${a.id}|${o.data}|${o.hora}|${o.tipo}" title="${o.hora} · ${o.tipo}" style="border:none;text-align:left">${o.tipo === "falta" ? "✕ " : ""}${o.hora}</button>`).join("")}</div>`; }).join("")}
+          </div>
+          <div class="legend"><span><i style="background:var(--soft)"></i>Aula</span><span><i style="background:var(--bad-bg)"></i>Falta</span><span><i style="background:var(--cancel-bg)"></i>Cancelada</span><span><i style="background:var(--info-bg)"></i>Reposição</span><span><i style="background:var(--gold-soft)"></i>Extra</span></div>
+          <div class="btns"><button class="btn sm" id="addExtra">+ Aula extra / reposição avulsa</button><span class="hint">Toque numa aula do calendário para marcar falta ou remarcar.</span></div>
+        </section>
+        <section class="panel stack">
+          <div class="top"><h3>Atividades</h3>
+            <div class="btns"><select id="sendSel" aria-label="Escolher atividade" style="max-width:250px"><option value="">Enviar atividade…</option>${DB.atividades.map(t => `<option value="${t.id}">${sent.has(t.id) ? "↻ " : ""}${esc(t.titulo)} · ${t.nivel}</option>`).join("")}</select><button class="btn primary sm" id="sendBtn">Enviar</button></div></div>
+          <div class="list">${env.map(e => { const t = atividade(e.atividade); if (!t) return ""; return `<div class="item"><div style="min-width:0"><div class="t">${esc(t.titulo)}</div><div class="small muted">${esc(t.tipo)} · enviada ${fmtDate(e.enviado)}${e.feito ? ` · feita ${fmtDate(e.feito)}` : ""}</div></div>
+            <div class="acts">${e.status === "pendente" ? `<span class="badge">Pendente</span>` : e.status === "corrigir" ? `<span class="badge warn">Escrita p/ corrigir</span>` : `<span class="badge ok">Concluída</span>`}${e.total ? `<span class="score">${e.acertos}/${e.total}</span>` : ""}${e.nota_escrita != null ? `<span class="badge ok">Escrita ${e.nota_escrita}/10</span>` : ""}
+            ${e.status === "corrigir" ? `<button class="btn primary sm" data-fix="${e.id}">Corrigir</button>` : e.status !== "pendente" && e.respostas && Object.keys(e.respostas).length ? `<button class="btn sm" data-fix="${e.id}">Ver</button>` : e.status === "pendente" ? `<button class="link danger" data-cancel="${e.id}">Cancelar envio</button>` : ""}</div></div>`; }).join("") || `<div class="empty">Nenhuma atividade enviada.</div>`}</div>
+          <p class="status" id="sendStatus"></p>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="private stack tight"><p class="eyebrow" style="margin:0">Observação privada · o aluno não vê</p>
+          <textarea id="obs" style="min-height:120px;background:var(--panel)">${esc(a.obs_privada)}</textarea><p class="status" id="obsStatus">Salva sozinha enquanto você digita.</p></section>
+        <section class="panel stack"><h3>Diário de aula</h3>
+          <form id="diaryForm" class="stack tight">
+            <div class="row"><label>Data<input type="date" id="dData" value="${today()}" required></label><label>Assunto da aula<input id="dAssunto" required placeholder="Ex.: Past simple"></label></div>
+            <label>Anotações<textarea id="dNotas" placeholder="O que foi conversado, dificuldades, vocabulário novo…"></textarea></label>
+            <label class="small" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="dShow" style="width:auto"> Mostrar o assunto para o aluno</label>
+            <p class="hint" style="margin:0">O diário é só seu. As anotações nunca aparecem para o aluno.</p>
+            <div class="btns"><button class="btn primary sm" type="submit">Salvar anotação</button></div></form>
+          <div class="stack">${DB.diario.filter(d => d.aluno === a.id).sort((x, y) => y.data.localeCompare(x.data)).map(d => `<div class="entry"><div class="d">${fmtDate(d.data)} ${d.mostrar ? `<span class="badge info">Aluno vê o assunto</span>` : `<span class="badge">Privado</span>`}</div><div style="font-weight:500">${esc(d.assunto)}</div>${d.notas ? `<div class="small muted" style="white-space:pre-wrap">${esc(d.notas)}</div>` : ""}<button class="link danger" data-ddel="${d.id}">Apagar</button></div>`).join("") || `<div class="empty">Nenhuma aula registrada.</div>`}</div>
+        </section>
+      </div>
+    </div>`);
+  const reload = () => go("alunos", { name: "aluno", id: a.id });
+  $("#back").addEventListener("click", () => go("alunos"));
+  $("#edit").addEventListener("click", () => go("alunos", { name: "form", id: a.id }));
+  $("#copyLink").addEventListener("click", e => navigator.clipboard.writeText(link).then(() => e.target.textContent = "Link copiado!").catch(() => e.target.textContent = link));
+  $("#cPrev").addEventListener("click", () => { UI.calM--; if (UI.calM < 0) { UI.calM = 11; UI.calY--; } reload(); });
+  $("#cNext").addEventListener("click", () => { UI.calM++; if (UI.calM > 11) { UI.calM = 0; UI.calY++; } reload(); });
+  $$("[data-occ]").forEach(btn => btn.addEventListener("click", () => openOccurrence(btn.dataset.occ, reload)));
+  $("#addExtra").addEventListener("click", () => {
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    openSheet(`<div class="sheet-head"><div><p class="eyebrow">${esc(a.nome)}</p><h2>Aula extra ou reposição</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+      <div class="chips" role="radiogroup"><button class="chip" data-t="reposicao" aria-pressed="true">Reposição (não cobra)</button><button class="chip" data-t="extra" aria-pressed="false">Aula extra (cobra)</button></div>
+      <div class="row"><label>Dia<input type="date" id="rData" value="${ymd(d)}"></label><label>Duração (min)<input type="number" id="rDur" value="${(a.aulas[0] || {}).dur || 60}" min="15" step="15"></label></div>
+      <div class="stack tight"><span class="hint">Horários livres nesse dia</span><div class="chips" id="rFree"></div></div>
+      <label>Ou digite o horário<input type="time" id="rHora"></label>
+      <div class="btns"><button class="btn primary" id="rSave">Marcar</button></div><p class="status" id="rStatus"></p>`);
+    let tipo = "reposicao";
+    $$("[data-t]").forEach(b => b.addEventListener("click", () => { tipo = b.dataset.t; $$("[data-t]").forEach(x => x.setAttribute("aria-pressed", x === b)); }));
+    const fill = () => { const fs = freeSlots($("#rData").value); $("#rFree").innerHTML = fs.length ? fs.map(h => `<button type="button" class="chip" data-h="${h}" aria-pressed="false">${h}</button>`).join("") : `<span class="hint">Nenhum horário livre nesse dia.</span>`;
+      $$("#rFree [data-h]").forEach(b => b.addEventListener("click", () => { $$("#rFree [data-h]").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rHora").value = b.dataset.h; })); };
+    $("#rData").addEventListener("change", fill); fill();
+    $("#rSave").addEventListener("click", () => { const h = $("#rHora").value; if (!h) { $("#rStatus").textContent = "Escolha um horário."; return; }
+      DB.eventos.push({ id: uid(), aluno: a.id, data: $("#rData").value, hora: h, dur: +$("#rDur").value || 60, tipo, obs: tipo === "extra" ? "Aula extra" : "Reposição avulsa" }); save(); closeSheet(true); reload(); });
+  });
+  let t; $("#obs").addEventListener("input", e => { clearTimeout(t); t = setTimeout(() => { a.obs_privada = e.target.value; save(); $("#obsStatus").textContent = "Salvo às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }, 500); });
+  $("#sendBtn").addEventListener("click", () => { const id = $("#sendSel").value; if (!id) { $("#sendStatus").textContent = "Escolha uma atividade."; return; } DB.envios.push({ id: uid(), aluno: a.id, atividade: id, enviado: today(), status: "pendente" }); save(); reload(); });
+  $$("[data-fix]").forEach(btn => btn.addEventListener("click", () => go("alunos", { name: "corrigir", id: btn.dataset.fix, back: { tab: "alunos", view: { name: "aluno", id: a.id } } })));
+  $$("[data-cancel]").forEach(btn => confirmBtn(btn, "Confirmar?", () => { DB.envios = DB.envios.filter(e => e.id !== btn.dataset.cancel); save(); reload(); }));
+  $$("[data-ddel]").forEach(btn => confirmBtn(btn, "Confirmar?", () => { DB.diario = DB.diario.filter(d => d.id !== btn.dataset.ddel); save(); reload(); }));
+  $("#diaryForm").addEventListener("submit", e => { e.preventDefault(); DB.diario.push({ id: uid(), aluno: a.id, data: $("#dData").value, assunto: $("#dAssunto").value.trim(), notas: $("#dNotas").value.trim(), mostrar: $("#dShow").checked }); save(); reload(); });
+}
+
+// ============================================================ FINANCEIRO
+function vFinanceiro() {
+  const Y = UI.finY, M0 = UI.finM, mm = M0 + 1;
+  const rows = DB.mensalidades.filter(m => m.ano === Y && m.mes === mm).map(m => ({ m, a: aluno(m.aluno) })).filter(r => r.a)
+    .sort((x, y) => (x.m.pago - y.m.pago) || x.a.nome.localeCompare(y.a.nome, "pt-BR"));
+  const tot = rows.reduce((s, r) => s + r.m.valor, 0), pago = rows.filter(r => r.m.pago).reduce((s, r) => s + r.m.valor, 0);
+  const missing = DB.alunos.filter(a => a.ativo !== false && !rows.some(r => r.a.id === a.id));
+  const previsto = DB.alunos.filter(a => a.ativo !== false).reduce((s, a) => s + billing(a, Y, M0).valor, 0);
+  shell(`
+    <div class="top"><div class="btns"><button class="btn sm" id="fPrev" aria-label="Mês anterior">‹</button><h2>${MONTHS[M0]} ${Y}</h2><button class="btn sm" id="fNext" aria-label="Próximo mês">›</button></div>
+      <div class="btns"><button class="btn primary" id="gen" ${missing.length ? "" : "disabled"}>${missing.length ? `Gerar mensalidades (${missing.length})` : "Mês já gerado"}</button></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Previsto</div><div class="v">${money(rows.length ? tot : previsto)}</div><div class="hint">${rows.length ? `${rows.length} mensalidades geradas` : "pelo calendário dos alunos ativos"}</div></div>
+      <div class="kpi"><div class="k">Recebido</div><div class="v ok">${money(pago)}</div></div>
+      <div class="kpi"><div class="k">Pendente</div><div class="v warn">${money(tot - pago)}</div><div class="hint">${rows.filter(r => !r.m.pago).length} aluno(s)</div></div>
+    </div>
+    <p class="status" id="finStatus" role="status"></p>
+    <div class="list">${rows.map(({ m, a }) => `<div class="item"><div style="min-width:0;display:flex;gap:10px;align-items:center">${avatar(a)}<div style="min-width:0"><div class="t">${esc(a.nome)}</div>
+        <div class="small muted">${a.cobranca.modo === "mensal" ? "Valor fixo mensal" : `${m.datas.length} aula${m.datas.length === 1 ? "" : "s"}: ${m.datas.map(pad).join(", ")}`}</div></div></div>
+      <div class="acts"><span class="score">${money(m.valor)}</span>
+        <button class="badge ${m.pago ? "ok" : "warn"}" style="border:none;padding:6px 12px;cursor:pointer" data-pay="${m.id}" aria-label="${esc(a.nome)}: ${m.pago ? "pago" : "pendente"}. Alternar">${m.pago ? `✓ Pago ${fmtDM(m.pago_em)}` : "Pendente"}</button>
+        <button class="btn primary sm" data-img="${m.id}">Criar imagem</button><button class="link danger" data-rm="${m.id}">Remover</button></div></div>`).join("")
+      || `<div class="empty">Nenhuma mensalidade gerada para ${MONTHS[M0].toLowerCase()}. Toque em <b>Gerar mensalidades</b>: os valores saem do calendário de cada aluno (faltas são cobradas, aulas canceladas por você não).</div>`}</div>
+    ${rows.length && missing.length ? `<p class="hint">Faltam ${missing.map(a => esc(a.apelido || a.nome)).join(", ")}. O botão de gerar cria só as que faltam.</p>` : ""}`);
+  $("#fPrev").addEventListener("click", () => { UI.finM--; if (UI.finM < 0) { UI.finM = 11; UI.finY--; } render(); });
+  $("#fNext").addEventListener("click", () => { UI.finM++; if (UI.finM > 11) { UI.finM = 0; UI.finY++; } render(); });
+  $("#gen").addEventListener("click", () => { missing.forEach(a => { const b = billing(a, Y, M0); DB.mensalidades.push({ id: uid(), aluno: a.id, ano: Y, mes: mm, datas: b.datas, valor: b.valor, pago: false, pago_em: null }); }); save(); render(); $("#finStatus").textContent = `${missing.length} mensalidade(s) criada(s). Toque em "Criar imagem" para mandar a cada aluno.`; });
+  $$("[data-pay]").forEach(b => b.addEventListener("click", () => { const m = DB.mensalidades.find(x => x.id === b.dataset.pay); m.pago = !m.pago; m.pago_em = m.pago ? today() : null; save(); render(); }));
+  $$("[data-rm]").forEach(b => confirmBtn(b, "Confirmar?", () => { DB.mensalidades = DB.mensalidades.filter(x => x.id !== b.dataset.rm); save(); render(); }));
+  $$("[data-img]").forEach(b => b.addEventListener("click", () => openCard(b.dataset.img)));
+}
+let claudeDownloads = null;
+if (window.claude && window.claude.use) window.claude.use("downloads").then(d => claudeDownloads = d).catch(() => {});
+function openCard(mid) {
+  const m = DB.mensalidades.find(x => x.id === mid), a = aluno(m.aluno), cfg = DB.ajustes, cv = $("#cv");
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">${MONTHS[m.mes - 1]} ${m.ano}</p><h2>Imagem de ${esc(a.apelido || a.nome)}</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)">
+      <div class="stack">
+        <label>Datas das aulas (dias do mês)<input id="cDatas" value="${m.datas.map(pad).join(", ")}"></label>
+        <div class="row"><label>Total (R$)<input id="cVal" inputmode="decimal" value="${String(m.valor.toFixed(2)).replace(".", ",")}"></label>
+          <label>Saudação<select id="cSaud">${["Hello","Hi","Good morning","Good afternoon"].map(x => `<option ${x === a.saudacao ? "selected" : ""}>${x}</option>`).join("")}</select></label></div>
+        <div class="row"><label>Cor<select id="cCor"><option value="rose" ${a.cor_card === "rose" ? "selected" : ""}>Rosé</option><option value="amarelo" ${a.cor_card === "amarelo" ? "selected" : ""}>Amarelo</option></select></label>
+          <label class="small" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink);align-self:end;padding-bottom:10px"><input type="checkbox" id="cPix" style="width:auto" ${a.mostrar_pix ? "checked" : ""}> Mostrar Pix</label></div>
+        <div class="btns"><button class="btn primary" id="cDown">Baixar imagem</button><button class="btn" id="cShare" hidden>Compartilhar</button><button class="btn" id="cCopy">Copiar mensagem</button><button class="btn" id="cSave">Salvar alterações</button></div>
+        <p class="status" id="cStatus" role="status"></p>
+      </div>
+      <div class="stack tight"><div class="canvasbox"><img id="cImg" alt="Prévia da imagem da mensalidade"></div><span class="hint">Se o botão não baixar, toque e segure (ou clique com o botão direito) na imagem e salve.</span></div>
+    </div>`, true);
+  const data = () => ({ name: a.apelido || a.nome.split(" ")[0], greeting: $("#cSaud").value, year: m.ano, month: m.mes - 1,
+    dates: [...new Set(String($("#cDatas").value).split(/[^\d]+/).filter(Boolean).map(Number).filter(n => n >= 1 && n <= 31))].sort((p, q) => p - q),
+    total: num($("#cVal").value), color: $("#cCor").value, showPix: $("#cPix").checked, pixKey: cfg.pix_chave, pixName: cfg.pix_nome, pixCity: cfg.pix_cidade, phone: cfg.telefone, thanks: cfg.obrigado });
+  const draw = () => { drawCard(cv, data()); $("#cImg").src = cv.toDataURL("image/png"); };
+  ["cDatas","cVal","cSaud","cCor","cPix"].forEach(id => $("#" + id).addEventListener("input", draw)); draw();
+  const fname = () => `Mensalidade_${norm(a.apelido || a.nome).replace(/ /g, "_")}_${MONTHS[m.mes - 1]}_${m.ano}.png`;
+  const blob = () => new Promise(r => { drawCard(cv, data()); cv.toBlob(r, "image/png"); });
+  $("#cDown").addEventListener("click", async () => {
+    const bl = await blob();
+    if (claudeDownloads) { try { await claudeDownloads.save({ filename: fname(), data: bl }); $("#cStatus").textContent = "Imagem salva."; } catch (e) { $("#cStatus").textContent = "Download cancelado ou indisponível. Toque e segure na imagem para salvar."; } return; }
+    const u = URL.createObjectURL(bl), l = document.createElement("a"); l.href = u; l.download = fname(); document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); $("#cStatus").textContent = "Imagem baixada.";
+  });
+  try { if (navigator.canShare && navigator.canShare({ files: [new File([""], "x.png", { type: "image/png" })] })) $("#cShare").hidden = false; } catch (e) {}
+  $("#cShare").addEventListener("click", async () => { try { await navigator.share({ files: [new File([await blob()], fname(), { type: "image/png" })], text: cardMessage(data()) }); } catch (e) {} });
+  $("#cCopy").addEventListener("click", () => { const t = cardMessage(data()); navigator.clipboard.writeText(t).then(() => $("#cStatus").textContent = "Mensagem copiada.").catch(() => $("#cStatus").textContent = t); });
+  $("#cSave").addEventListener("click", () => { const d = data(); m.datas = d.dates; m.valor = d.total; save(); $("#cStatus").textContent = "Salvo."; });
+  const obs = new MutationObserver(() => { if (sheet.hidden) { obs.disconnect(); if (UI.tab === "financeiro" && !UI.view) render(); } }); obs.observe(sheet, { attributes: true });
+}
+
+// ============================================================ ATIVIDADES
+const ITEM_TYPES = [
+  ["info", "Instrução"], ["mc", "Marcar X"], ["tf", "Verdadeiro ou falso"], ["gap", "Completar"],
+  ["match", "Ligar colunas"], ["order", "Ordenar frase"], ["write", "Escrita"], ["media", "Áudio ou vídeo"]
+];
+const TYPE_LABEL = Object.fromEntries(ITEM_TYPES);
+const ACT_TYPES = ["Marcar X", "Completar", "Escrita", "Híbrida", "Música", "Vocabulário", "Gramática", "Listening"];
+const newItem = t => ({ info: { t, p: "" }, mc: { t, p: "", o: ["", ""], c: 0 }, tf: { t, p: "", v: true }, gap: { t, p: "" },
+  match: { t, p: "Match the columns.", pairs: [["", ""], ["", ""]] }, order: { t, p: "Put the words in order.", s: "" }, write: { t, p: "", min: 0 }, media: { t, p: "", url: "" } })[t];
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const counts = items => { const c = { auto: 0, write: 0 }; items.forEach(i => { if (i.t === "write") c.write++; else c.auto += itemPoints(i); }); return c; };
+
+function vAtividades() {
+  const F = UI.actF || (UI.actF = { q: "", nivel: "todos", tipo: "todos", pasta: "todas" });
+  const pastas = [...new Set(DB.atividades.map(t => t.pasta || "Sem pasta"))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const list = DB.atividades.filter(t => (!F.q || norm(t.titulo).includes(norm(F.q))) && (F.nivel === "todos" || t.nivel === F.nivel)
+    && (F.tipo === "todos" || t.tipo === F.tipo) && (F.pasta === "todas" || (t.pasta || "Sem pasta") === F.pasta));
+  const groups = pastas.map(p => [p, list.filter(t => (t.pasta || "Sem pasta") === p)]).filter(([, v]) => v.length);
+  shell(`
+    <div class="top"><div class="btns"><button class="btn primary" id="newAct">+ Nova atividade</button><button class="btn" id="impAct">Importar do Word</button></div>
+      <span class="small muted">${DB.atividades.length} atividades na biblioteca</span></div>
+    <div class="btns">
+      <input id="aq" placeholder="Buscar atividade…" aria-label="Buscar atividade" value="${esc(F.q)}" style="max-width:220px">
+      <select id="afTipo" aria-label="Tipo" style="width:auto"><option value="todos">Todos os tipos</option>${ACT_TYPES.map(x => `<option ${F.tipo === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+      <select id="afPasta" aria-label="Pasta" style="width:auto"><option value="todas">Todas as pastas</option>${pastas.map(x => `<option ${F.pasta === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
+      <div class="chips" role="group" aria-label="Filtrar por nível"><button class="chip" data-lv="todos" aria-pressed="${F.nivel === "todos"}">Todos</button>${LEVELS.map(l => `<button class="chip" data-lv="${l}" aria-pressed="${F.nivel === l}">${l}</button>`).join("")}</div>
+    </div>
+    ${groups.map(([p, v]) => `<section class="stack tight"><div class="lvlhead"><h3>${esc(p)}</h3><span class="small muted">${v.length}</span></div>
+      <div class="list">${v.map(t => { const n = DB.envios.filter(e => e.atividade === t.id).length, c = counts(t.itens); return `<div class="item"><div style="min-width:0"><div class="t">${esc(t.titulo)}</div>
+        <div class="small muted">${t.itens.filter(i => i.t !== "info").length} questões · ${c.auto} pontos automáticos${c.write ? ` · ${c.write} de escrita` : ""} · enviada ${n}×</div></div>
+        <div class="acts"><span class="badge lvl">${t.nivel}</span><span class="badge">${esc(t.tipo)}</span>
+          <button class="btn sm" data-pv="${t.id}">Ver</button><button class="btn sm" data-ed="${t.id}">Editar</button><button class="btn sm" data-dup="${t.id}">Duplicar</button></div></div>`; }).join("")}</div></section>`).join("")
+      || `<div class="empty">Nenhuma atividade com esses filtros.</div>`}`);
+  $("#newAct").addEventListener("click", () => go("atividades", { name: "editor" }));
+  $("#impAct").addEventListener("click", openImport);
+  const q = $("#aq"); q.addEventListener("input", () => { F.q = q.value; const pos = q.selectionStart; render(); const n = $("#aq"); n.focus(); n.setSelectionRange(pos, pos); });
+  $("#afTipo").addEventListener("change", e => { F.tipo = e.target.value; render(); });
+  $("#afPasta").addEventListener("change", e => { F.pasta = e.target.value; render(); });
+  $$("[data-lv]").forEach(b => b.addEventListener("click", () => { F.nivel = b.dataset.lv; render(); }));
+  $$("[data-ed]").forEach(b => b.addEventListener("click", () => go("atividades", { name: "editor", id: b.dataset.ed })));
+  $$("[data-pv]").forEach(b => b.addEventListener("click", () => previewActivity(atividade(b.dataset.pv))));
+  $$("[data-dup]").forEach(b => b.addEventListener("click", () => { const o = JSON.parse(JSON.stringify(atividade(b.dataset.dup))); o.id = uid(); o.titulo += " (cópia)"; DB.atividades.push(o); save(); go("atividades", { name: "editor", id: o.id }); }));
+}
+
+// ---------- prévia (como o aluno vê, com gabarito)
+function itemPreview(i, n) {
+  const head = `<div class="n">${TYPE_LABEL[i.t]} · ${n}</div>`;
+  if (i.t === "mc") return `<div class="q">${head}<div class="p">${esc(i.p)}</div>${i.o.map((o, j) => `<div class="opt ${j === i.c ? "right" : ""}">${j === i.c ? "✓" : "·"} ${esc(o)}</div>`).join("")}</div>`;
+  if (i.t === "tf") return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="btns"><span class="opt ${i.v ? "right" : ""}">True</span><span class="opt ${!i.v ? "right" : ""}">False</span></div></div>`;
+  if (i.t === "gap") return `<div class="q">${head}<div class="gapline">${esc(i.p).replace(/\[([^\]]*)\]/g, (m, x) => x.trim() ? `<b style="color:var(--ok)">${esc(x.split("|").join(" / "))}</b>` : `<b style="color:var(--bad)">[ ? ]</b>`)}</div></div>`;
+  if (i.t === "match") return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="stack tight">${i.pairs.map(([l, r]) => `<div class="opt">${esc(l)} <span class="muted">→</span> <b style="font-weight:500">${esc(r)}</b></div>`).join("")}</div><div class="hint">O aluno vê a coluna da direita embaralhada.</div></div>`;
+  if (i.t === "order") { const w = String(i.s).trim().split(/\s+/).filter(Boolean); return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="chips">${shuffleStable(w).map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div><div class="hint">Resposta: ${esc(i.s)}</div></div>`; }
+  if (i.t === "write") return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="hint">${i.min ? `Mínimo de ${i.min} palavras. ` : ""}Vai para a sua fila de correção.</div></div>`;
+  if (i.t === "media") return `<div class="q">${head}${i.p ? `<div class="p">${esc(i.p)}</div>` : ""}<a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">▶ Abrir áudio/vídeo</a></div>`;
+  return "";
+}
+function shuffleStable(arr) { const a = arr.map((x, i) => [x, (i * 7919 + arr.length * 104729) % 97]); a.sort((p, q) => p[1] - q[1]); const out = a.map(x => x[0]); return out.join(" ") === arr.join(" ") && arr.length > 1 ? out.reverse() : out; }
+function previewActivity(t) {
+  let n = 0; const mus = t.musica;
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">${esc(t.tipo)} · ${t.nivel}</p><h2>${esc(t.titulo)}</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <p class="hint" style="margin:0">Prévia de como o aluno vê (com as respostas certas marcadas).</p>
+    ${mus ? `<a class="btn" href="${esc(mus.youtube)}" target="_blank" rel="noopener">▶ Ouvir no YouTube</a>${mus.vocab && mus.vocab.length ? `<div class="vocab">${mus.vocab.map(([w, p, tr]) => `<div><b>${esc(w)}</b><span class="small">🗣 ${esc(p || "")}</span><br><span class="small muted">${esc(tr || "")}</span></div>`).join("")}</div>` : ""}
+      ${mus.letra ? `<div class="q"><div class="n">Letra para completar</div><div class="gapline" style="white-space:pre-wrap">${esc(mus.letra).replace(/\[([^\]]+)\]/g, (m, x) => `<b style="color:var(--ok)">${esc(x.split("|")[0])}</b>`)}</div></div>` : `<div class="private small">A letra ainda não foi colada. Em <b>Editar</b>, cole a letra e coloque entre [colchetes] as palavras que o aluno completa ouvindo.</div>`}` : ""}
+    ${t.itens.map(i => i.t === "info" ? `<div class="instr">${esc(i.p)}</div>` : itemPreview(i, ++n)).join("")}`, true);
+}
+
+// ---------- editor visual
+function vEditor() {
+  const t = UI.view.id ? atividade(UI.view.id) : null, draft = UI.view.draft;
+  const st = UI.edState && UI.edState.key === (UI.view.id || "new") ? UI.edState : (UI.edState = { key: UI.view.id || "new",
+    titulo: draft ? draft.titulo : t ? t.titulo : "", nivel: t ? t.nivel : "A1", tipo: t ? t.tipo : (draft ? "Híbrida" : "Marcar X"), pasta: t ? (t.pasta || "") : "",
+    itens: JSON.parse(JSON.stringify(draft ? draft.itens : t ? t.itens : [newItem("info"), newItem("mc")])), musica: JSON.parse(JSON.stringify(t && t.musica ? t.musica : { youtube: "", letra: "", vocab: [] })) });
+  const pastas = [...new Set(DB.atividades.map(x => x.pasta).filter(Boolean))];
+  shell(`<button class="link" id="back" style="align-self:flex-start">‹ Atividades</button>
+    ${draft ? `<div class="private small">${draft.aviso}</div>` : ""}
+    <div class="cols" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)">
+      <div class="stack">
+        <section class="panel stack"><h2>${t ? "Editar atividade" : "Nova atividade"}</h2>
+          <label>Título<input id="eTit" value="${esc(st.titulo)}" placeholder="Ex.: Past simple · My weekend"></label>
+          <div class="row3"><label>Nível<select id="eNiv">${LEVELS.map(l => `<option ${st.nivel === l ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+            <label>Tipo<select id="eTipo">${ACT_TYPES.map(x => `<option ${st.tipo === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+            <label>Pasta / tema<input id="ePasta" list="pastasList" value="${esc(st.pasta)}" placeholder="Ex.: Verbos, Viagem"><datalist id="pastasList">${pastas.map(p => `<option value="${esc(p)}">`).join("")}</datalist></label></div>
+        </section>
+        <section class="panel stack tight" id="musicBox" ${st.tipo === "Música" ? "" : "hidden"}><h3>Música</h3>
+          <label>Link do YouTube<input id="eYt" value="${esc(st.musica.youtube)}"></label>
+          <label>Letra da música <span class="hint">(cole a letra; selecione uma palavra e toque em "Virar lacuna")</span><textarea id="eLetra" style="min-height:130px">${esc(st.musica.letra)}</textarea></label>
+          <div class="btns"><button type="button" class="btn sm" id="letraGap">Virar lacuna</button></div>
+          <label>Vocabulário e pronúncia <span class="hint">(palavra = como se fala = tradução)</span><textarea id="eVocab">${esc((st.musica.vocab || []).map(v => v.join(" = ")).join("\n"))}</textarea></label>
+        </section>
+        <div class="stack" id="items"></div>
+        <section class="panel stack tight"><h3>Adicionar</h3><div class="btns">${ITEM_TYPES.map(([k, l]) => `<button type="button" class="btn sm" data-add="${k}">+ ${l}</button>`).join("")}</div></section>
+        <div class="btns"><button class="btn primary" id="eSave">Salvar atividade</button><button class="btn" id="ePrev">Ver como o aluno</button>${t ? `<button class="link danger" id="delAct">Excluir atividade</button>` : ""}</div>
+        <p class="status" id="edStatus" role="status"></p>
+      </div>
+      <div class="stack" style="position:sticky;top:12px">
+        <section class="panel stack tight"><h3>Resumo</h3><div id="eSum"></div></section>
+        <section class="panel stack tight"><h3>Dicas</h3>${LANG === "en" ? `<ul class="small muted" style="margin:0;padding-left:18px" data-notr>
+          <li>In <b>Multiple choice</b>, tap the circle of the correct answer.</li>
+          <li>In <b>Fill in</b>, select the word in the sentence and tap <b>Make it a blank</b>. To accept more than one answer, separate them with <b>|</b> inside the brackets: [lives|is living].</li>
+          <li><b>Match columns</b> and <b>Sentence order</b> are shuffled for the student.</li>
+          <li><b>Writing</b> goes to your Grading tab.</li></ul>` : `<ul class="small muted" style="margin:0;padding-left:18px">
+          <li>Em <b>Marcar X</b>, toque no círculo da resposta certa.</li>
+          <li>Em <b>Completar</b>, selecione a palavra na frase e toque em <b>Virar lacuna</b>. Para aceitar mais de uma resposta, separe com <b>|</b> dentro dos colchetes: [lives|is living].</li>
+          <li><b>Ligar colunas</b> e <b>Ordenar frase</b> aparecem embaralhados para o aluno.</li>
+          <li><b>Escrita</b> vai para a sua aba Correções.</li></ul>`}</section>
+      </div>
+    </div>`);
+  const sync = () => { st.titulo = $("#eTit").value; st.nivel = $("#eNiv").value; st.tipo = $("#eTipo").value; st.pasta = $("#ePasta").value;
+    if ($("#eYt")) { st.musica.youtube = $("#eYt").value; st.musica.letra = $("#eLetra").value; st.musica.vocab = $("#eVocab").value.split("\n").map(l => l.split("=").map(s => s.trim())).filter(v => v[0]); } };
+  ["eTit","eNiv","ePasta","eYt","eLetra","eVocab"].forEach(id => $("#" + id) && $("#" + id).addEventListener("input", () => { sync(); summary(); }));
+  $("#eTipo").addEventListener("change", () => { sync(); $("#musicBox").hidden = st.tipo !== "Música"; });
+  $("#letraGap").addEventListener("click", () => wrapSelection($("#eLetra"), () => { sync(); summary(); }));
+  const summary = () => { const c = counts(st.itens), probs = problems(st.itens);
+    $("#eSum").innerHTML = `<div class="btns" style="gap:6px"><span class="badge">${plural(st.itens.filter(i => i.t !== "info").length, "questão", "questões")}</span><span class="badge">${plural(c.auto, "ponto automático", "pontos automáticos")}</span>${c.write ? `<span class="badge">${c.write} de escrita</span>` : ""}</div>
+      ${probs.length ? `<div class="stack tight" style="margin-top:8px">${probs.map(p => `<span class="small" style="color:var(--bad)">• ${p}</span>`).join("")}</div>` : `<p class="small" style="color:var(--ok);margin:8px 0 0">Tudo certo para salvar.</p>`}`;
+    translate($("#eSum")); };
+  const draw = () => {
+    $("#items").innerHTML = st.itens.map((i, k) => itemEditor(i, k, st.itens.length)).join("") || `<div class="empty">Adicione a primeira questão abaixo.</div>`;
+    translate($("#items")); bindItems(); summary();
+  };
+  const bindItems = () => {
+    $$("#items [data-f]").forEach(el => el.addEventListener("input", () => { const i = st.itens[el.dataset.k], f = el.dataset.f;
+      if (f === "o") i.o[+el.dataset.j] = el.value; else if (f === "pl") i.pairs[+el.dataset.j][0] = el.value; else if (f === "pr") i.pairs[+el.dataset.j][1] = el.value;
+      else if (f === "min") i.min = +el.value || 0; else i[f] = el.value;
+      if (f === "s") { const pv = $(`[data-orderpv="${el.dataset.k}"]`); if (pv) pv.innerHTML = shuffleStable(el.value.trim().split(/\s+/).filter(Boolean)).map(x => `<span class="chip">${esc(x)}</span>`).join(""); }
+      if (f === "p" && i.t === "gap") { const ch = $(`[data-gapans="${el.dataset.k}"]`); if (ch) ch.innerHTML = gapChips(i.p); }
+      summary(); }));
+    $$("#items [data-c]").forEach(el => el.addEventListener("change", () => { st.itens[el.dataset.k].c = +el.dataset.c; summary(); }));
+    $$("#items [data-tf]").forEach(el => el.addEventListener("click", () => { st.itens[el.dataset.k].v = el.dataset.tf === "1"; draw(); }));
+    $$("#items [data-act]").forEach(el => el.addEventListener("click", () => { const k = +el.dataset.k, a = el.dataset.act, L = st.itens;
+      if (a === "up" && k > 0) [L[k - 1], L[k]] = [L[k], L[k - 1]];
+      if (a === "down" && k < L.length - 1) [L[k + 1], L[k]] = [L[k], L[k + 1]];
+      if (a === "dup") L.splice(k + 1, 0, JSON.parse(JSON.stringify(L[k])));
+      if (a === "del") L.splice(k, 1);
+      if (a === "addopt") L[k].o.push("");
+      if (a === "rmopt") { L[k].o.splice(+el.dataset.j, 1); if (L[k].c >= L[k].o.length) L[k].c = 0; }
+      if (a === "addpair") L[k].pairs.push(["", ""]);
+      if (a === "rmpair") L[k].pairs.splice(+el.dataset.j, 1);
+      if (a === "gap") { wrapSelection($(`[data-f="p"][data-k="${k}"]`), () => { L[k].p = $(`[data-f="p"][data-k="${k}"]`).value; }); }
+      draw(); }));
+  };
+  draw();
+  $$("[data-add]").forEach(b => b.addEventListener("click", () => { st.itens.push(newItem(b.dataset.add)); draw(); const last = $$("#items .q").pop(); if (last) { last.scrollIntoView({ block: "center" }); const f = $("input,textarea", last); if (f) f.focus(); } }));
+  const leave = () => { UI.edState = null; go("atividades"); };
+  $("#back").addEventListener("click", leave);
+  $("#ePrev").addEventListener("click", () => { sync(); previewActivity({ titulo: st.titulo || "Sem título", nivel: st.nivel, tipo: st.tipo, itens: st.itens, musica: st.tipo === "Música" ? st.musica : null }); });
+  $("#eSave").addEventListener("click", () => { sync();
+    if (!st.titulo.trim()) { $("#edStatus").textContent = "Dê um título para a atividade."; $("#eTit").focus(); return; }
+    const probs = problems(st.itens); if (probs.length) { $("#edStatus").textContent = "Corrija os itens marcados no resumo antes de salvar."; return; }
+    if (!st.itens.length && st.tipo !== "Música") { $("#edStatus").textContent = "Adicione pelo menos uma questão."; return; }
+    const o = t || { id: uid() };
+    Object.assign(o, { titulo: st.titulo.trim(), nivel: st.nivel, tipo: st.tipo, pasta: st.pasta.trim(), itens: st.itens.map(cleanItem) });
+    if (st.tipo === "Música") o.musica = st.musica; else delete o.musica;
+    if (!t) DB.atividades.push(o); save(); leave(); });
+  if (t) confirmBtn($("#delAct"), "Remove dos alunos também. Confirmar?", () => { DB.atividades = DB.atividades.filter(x => x.id !== t.id); DB.envios = DB.envios.filter(x => x.atividade !== t.id); save(); leave(); });
+}
+function cleanItem(i) { const o = JSON.parse(JSON.stringify(i)); if (o.t === "mc") { const keep = o.o.map((x, j) => [x.trim(), j]).filter(([x]) => x); o.c = Math.max(0, keep.findIndex(([, j]) => j === o.c)); o.o = keep.map(([x]) => x); }
+  if (o.t === "match") o.pairs = o.pairs.filter(([l, r]) => l.trim() && r.trim()); return o; }
+function problems(items) {
+  const out = []; let n = 0;
+  items.forEach(i => { if (i.t === "info") return; n++;
+    if (i.t !== "media" && !String(i.p || "").trim() && i.t !== "match" && i.t !== "order") out.push(`Questão ${n}: falta o enunciado.`);
+    if (i.t === "mc" && i.o.filter(x => x.trim()).length < 2) out.push(`Questão ${n}: precisa de pelo menos 2 opções.`);
+    if (i.t === "mc" && (i.c < 0 || !String(i.o[i.c] || "").trim())) out.push(`Questão ${n}: marque a resposta certa.`);
+    if (i.t === "gap" && !gapAnswers(i.p).length) out.push(`Questão ${n}: selecione a palavra e toque em "Virar lacuna".`);
+    if (i.t === "gap" && gapAnswers(i.p).some(a => !a.join("").trim())) out.push(`Questão ${n}: tem lacuna sem resposta.`);
+    if (i.t === "match" && i.pairs.filter(([l, r]) => l.trim() && r.trim()).length < 2) out.push(`Questão ${n}: precisa de pelo menos 2 pares.`);
+    if (i.t === "order" && String(i.s).trim().split(/\s+/).filter(Boolean).length < 2) out.push(`Questão ${n}: escreva a frase na ordem certa.`);
+    if (i.t === "media" && !String(i.url || "").trim()) out.push(`Questão ${n}: cole o link do áudio ou vídeo.`); });
+  return out;
+}
+const gapChips = p => { const a = gapAnswers(p); return a.length ? a.map(x => `<span class="badge ${x.join("").trim() ? "ok" : "bad"}">${esc(x.join(" / ") || "?")}</span>`).join(" ") : `<span class="hint">Nenhuma lacuna ainda.</span>`; };
+function wrapSelection(ta, after) {
+  const s = ta.selectionStart, e = ta.selectionEnd; if (s === e) { ta.focus(); return; }
+  const sel = ta.value.slice(s, e).trim(); ta.value = ta.value.slice(0, s) + "[" + sel + "]" + ta.value.slice(e); after && after();
+}
+function itemEditor(i, k, total) {
+  const tools = `<div class="btns" style="gap:2px"><button type="button" class="link" data-act="up" data-k="${k}" aria-label="Subir" ${k === 0 ? "disabled" : ""}>↑</button><button type="button" class="link" data-act="down" data-k="${k}" aria-label="Descer" ${k === total - 1 ? "disabled" : ""}>↓</button><button type="button" class="link" data-act="dup" data-k="${k}">Duplicar</button><button type="button" class="link danger" data-act="del" data-k="${k}">Excluir</button></div>`;
+  const head = `<div class="top" style="align-items:center"><span class="badge ${i.t === "info" ? "" : "lvl"}">${TYPE_LABEL[i.t]}</span>${tools}</div>`;
+  let body = "";
+  if (i.t === "info") body = `<label>Texto da instrução<input data-f="p" data-k="${k}" value="${esc(i.p)}" placeholder="Ex.: Part 1 · Choose the correct option."></label>`;
+  if (i.t === "mc") body = `<label>Pergunta<input data-f="p" data-k="${k}" value="${esc(i.p)}" placeholder="Ex.: She ___ to work by bus."></label>
+    <div class="stack tight"><span class="hint">Opções (toque no círculo da resposta certa)</span>${i.o.map((o, j) => `<div class="btns" style="flex-wrap:nowrap"><input type="radio" name="c${k}" data-c="${j}" data-k="${k}" ${i.c === j ? "checked" : ""} aria-label="Resposta certa" style="width:auto;accent-color:var(--ok)"><input data-f="o" data-k="${k}" data-j="${j}" value="${esc(o)}" placeholder="Opção ${j + 1}">${i.o.length > 2 ? `<button type="button" class="link danger" data-act="rmopt" data-k="${k}" data-j="${j}" aria-label="Remover opção">✕</button>` : ""}</div>`).join("")}
+    <div><button type="button" class="btn sm" data-act="addopt" data-k="${k}">+ Opção</button></div></div>`;
+  if (i.t === "tf") body = `<label>Afirmação<input data-f="p" data-k="${k}" value="${esc(i.p)}" placeholder="Ex.: Carlópolis has a big lake."></label>
+    <div class="btns"><span class="hint">Resposta certa:</span><span class="seg"><button type="button" data-tf="1" data-k="${k}" aria-pressed="${i.v}">True</button><button type="button" data-tf="0" data-k="${k}" aria-pressed="${!i.v}">False</button></span></div>`;
+  if (i.t === "gap") body = `<label>Frase<textarea data-f="p" data-k="${k}" style="min-height:60px" placeholder="Ex.: My friends are very nice.">${esc(i.p)}</textarea></label>
+    <div class="btns"><button type="button" class="btn sm" data-act="gap" data-k="${k}">Virar lacuna</button><span class="hint">Selecione a palavra na frase antes.</span></div>
+    <div class="btns" style="gap:6px"><span class="hint">Respostas:</span><span data-gapans="${k}">${gapChips(i.p)}</span></div>`;
+  if (i.t === "match") body = `<label>Instrução<input data-f="p" data-k="${k}" value="${esc(i.p)}"></label>
+    <div class="stack tight"><span class="hint">Pares (esquerda → direita)</span>${i.pairs.map(([l, r], j) => `<div class="btns" style="flex-wrap:nowrap"><input data-f="pl" data-k="${k}" data-j="${j}" value="${esc(l)}" placeholder="Ex.: breakfast"><span class="muted">→</span><input data-f="pr" data-k="${k}" data-j="${j}" value="${esc(r)}" placeholder="Ex.: café da manhã">${i.pairs.length > 2 ? `<button type="button" class="link danger" data-act="rmpair" data-k="${k}" data-j="${j}" aria-label="Remover par">✕</button>` : ""}</div>`).join("")}
+    <div><button type="button" class="btn sm" data-act="addpair" data-k="${k}">+ Par</button></div></div>`;
+  if (i.t === "order") body = `<label>Instrução<input data-f="p" data-k="${k}" value="${esc(i.p)}"></label>
+    <label>Frase na ordem certa<input data-f="s" data-k="${k}" value="${esc(i.s)}" placeholder="Ex.: I usually drink coffee in the morning"></label>
+    <div class="stack tight"><span class="hint">O aluno vê assim:</span><div class="chips" data-orderpv="${k}">${shuffleStable(String(i.s).trim().split(/\s+/).filter(Boolean)).map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div></div>`;
+  if (i.t === "write") body = `<label>Proposta de escrita<textarea data-f="p" data-k="${k}" style="min-height:70px" placeholder="Ex.: Write 5 sentences about your weekend.">${esc(i.p)}</textarea></label>
+    <label style="max-width:200px">Mínimo de palavras<input type="number" min="0" data-f="min" data-k="${k}" value="${i.min || 0}"></label>`;
+  if (i.t === "media") body = `<label>Link do áudio ou vídeo (YouTube, Drive, Spotify…)<input data-f="url" data-k="${k}" value="${esc(i.url)}" placeholder="https://"></label>
+    <label>Legenda ou instrução<input data-f="p" data-k="${k}" value="${esc(i.p)}" placeholder="Ex.: Listen and answer the questions below."></label>`;
+  return `<section class="q">${head}${body}</section>`;
+}
+
+// ---------- importar do Word / colar texto
+function openImport() {
+  openSheet(`<div class="sheet-head"><div><p class="eyebrow">Atividades</p><h2>Importar do Word</h2></div><button class="x" aria-label="Fechar">✕</button></div>
+    <p class="small muted" style="margin:0">Envie o arquivo .docx da atividade ou cole o texto. O painel separa perguntas, opções e lacunas, e você revisa antes de salvar.</p>
+    <label class="btn" style="flex-direction:row;justify-content:center;cursor:pointer;color:var(--ink)">Escolher arquivo .docx<input type="file" id="impFile" accept=".docx" hidden></label>
+    <label>Ou cole o texto aqui<textarea id="impTxt" style="min-height:180px" placeholder="1. She ___ to work by bus.&#10;a) go&#10;b) goes ✓&#10;c) going"></textarea></label>
+    <div class="btns"><button class="btn primary" id="impGo">Transformar em atividade</button></div>
+    <p class="status" id="impStatus" role="status"></p>
+    <section class="panel stack tight"><h3>Como o painel entende</h3>${LANG === "en" ? `<ul class="small muted" style="margin:0;padding-left:18px" data-notr>
+      <li>Lines with <b>a) b) c)</b> or <b>( )</b> after a question become <b>Multiple choice</b>.</li>
+      <li>The correct answer is the option in <b>bold</b> or highlighted in Word, or marked with <b>(x)</b>, <b>✓</b> or <b>*</b>.</li>
+      <li>Lines with <b>( T )</b>/<b>( F )</b> or <b>( V )</b>/<b>( F )</b> become true or false.</li>
+      <li>Lines with <b>____</b> become <b>Fill in</b>. If the answer is in parentheses at the end, it becomes the blank's answer.</li>
+      <li>Prompts like <b>Write…</b> become <b>Writing</b>. Everything else becomes an instruction.</li></ul>` : `<ul class="small muted" style="margin:0;padding-left:18px">
+      <li>Linhas com <b>a) b) c)</b> ou <b>( )</b> depois de uma pergunta viram <b>Marcar X</b>.</li>
+      <li>A resposta certa é a opção em <b>negrito</b> ou marcador de texto no Word, ou com <b>(x)</b>, <b>✓</b> ou <b>*</b>.</li>
+      <li>Linhas com <b>( T )</b>/<b>( F )</b> ou <b>( V )</b>/<b>( F )</b> viram verdadeiro ou falso.</li>
+      <li>Linhas com <b>____</b> viram <b>Completar</b>. Se a resposta vier entre parênteses no fim, ela já entra como lacuna.</li>
+      <li>Pedidos como <b>Write…</b> ou <b>Escreva…</b> viram <b>Escrita</b>. O resto vira instrução.</li></ul>`}</section>`, true);
+  const finish = (lines, name) => {
+    const itens = linesToItems(lines); if (!itens.length) { $("#impStatus").textContent = "Não encontrei questões nesse conteúdo."; return; }
+    const sem = problems(itens).length;
+    closeSheet(true); UI.edState = null;
+    go("atividades", { name: "editor", draft: { titulo: name || "", itens, aviso: `Importei ${itens.filter(i => i.t !== "info").length} questões. ${sem ? `${sem} ponto(s) precisam de revisão: veja o resumo à direita.` : "Revise e salve."}` } });
+  };
+  $("#impFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return; $("#impStatus").textContent = "Lendo o arquivo…";
+    try { const lines = await readDocx(f); finish(lines, f.name.replace(/\.docx$/i, "").replace(/[_-]+/g, " ")); }
+    catch (err) { $("#impStatus").textContent = "Não consegui ler esse arquivo. Confira se é .docx (Word) ou cole o texto."; }
+  });
+  $("#impGo").addEventListener("click", () => { const txt = $("#impTxt").value; if (!txt.trim()) { $("#impStatus").textContent = "Escolha um arquivo ou cole o texto."; return; }
+    finish(txt.split(/\r?\n/).map(t => ({ text: t, strong: false })), ""); });
+}
+async function readDocx(file) {
+  if (!window.JSZip) throw new Error("zip");
+  const zip = await JSZip.loadAsync(file), xml = await zip.file("word/document.xml").async("string");
+  const doc = new DOMParser().parseFromString(xml, "application/xml"), W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  return [...doc.getElementsByTagNameNS(W, "p")].map(p => {
+    let text = "", strongLen = 0, len = 0;
+    [...p.getElementsByTagNameNS(W, "r")].forEach(r => { const t = [...r.getElementsByTagNameNS(W, "t")].map(x => x.textContent).join("") + (r.getElementsByTagNameNS(W, "tab").length ? " " : "");
+      const rp = r.getElementsByTagNameNS(W, "rPr")[0], on = el => !!el && !["0", "false", "off", "none"].includes(String(el.getAttributeNS(W, "val") || el.getAttribute("w:val") || "").toLowerCase());
+      const shd = rp && rp.getElementsByTagNameNS(W, "shd")[0], shdOn = !!shd && !["auto", "FFFFFF", "ffffff", ""].includes(shd.getAttributeNS(W, "fill") || shd.getAttribute("w:fill") || "");
+      const strong = !!(rp && (on(rp.getElementsByTagNameNS(W, "b")[0]) || on(rp.getElementsByTagNameNS(W, "highlight")[0]) || shdOn));
+      text += t; len += t.trim().length; if (strong) strongLen += t.trim().length; });
+    return { text, strong: len > 0 && strongLen / len > .6 };
+  });
+}
+function linesToItems(lines) {
+  const items = []; let pendingQ = null, curMc = null;
+  const optRx = /^(?:\(\s*([xX✓✔*]?)\s*\)|\[\s*([xX✓✔]?)\s*\]|([a-eA-E])\s*[\)\.\-])\s*(.+)$/;
+  const tfRx = /^\(\s*([VFTvft])\s*\)\s*(.+)$/;
+  const numRx = /^\s*(\d+|[ivx]+)\s*[\.\)\-]\s+/i;
+  const flush = () => { if (pendingQ) { items.push(pendingQ); pendingQ = null; } };
+  for (const { text, strong } of lines) {
+    let line = String(text).replace(/\s+/g, " ").trim(); if (!line) { curMc = null; continue; }
+    const tf = line.match(tfRx);
+    if (tf && !/^\(\s*[xX]\s*\)/.test(line)) { flush(); curMc = null; items.push({ t: "tf", p: tf[2].trim(), v: /[VvTt]/.test(tf[1]) }); continue; }
+    const op = line.match(optRx);
+    if (op && (curMc || pendingQ)) {
+      if (!curMc) { curMc = { t: "mc", p: pendingQ.raw || pendingQ.p, o: [], c: -1 }; pendingQ = null; items.push(curMc); }
+      let txt = op[4].trim(); const mark = /[xX✓✔*]/.test(op[1] || op[2] || "") || /\s*(✓|✔|\*)$/.test(txt) || strong;
+      txt = txt.replace(/\s*(✓|✔|\*)$/, "").trim();
+      if (mark && curMc.c < 0) curMc.c = curMc.o.length; curMc.o.push(txt); continue;
+    }
+    curMc = null;
+    line = line.replace(numRx, "");
+    if (/_{3,}/.test(line)) { flush();
+      const ans = line.match(/\(([^()]+)\)\s*\.?$/); let p = line;
+      if (ans && /_{3,}/.test(line.replace(ans[0], "")) && line.match(/_{3,}/g).length === 1) p = line.replace(ans[0], "").trim().replace(/_{3,}/, `[${ans[1].trim()}]`);
+      else p = line.replace(/_{3,}/g, "[ ]");
+      pendingQ = { t: "gap", p, raw: line.replace(/_{3,}/g, "___") }; continue; }
+    if (/^(write|escreva|writing|redação|redacao|compose|describe|descreva)\b/i.test(line)) { flush(); items.push({ t: "write", p: line, min: 0 }); continue; }
+    flush();
+    if (/[?:]$/.test(line) || /___|\.\.\./.test(line) || line.length > 0) pendingQ = { t: "info", p: line };
+  }
+  flush();
+  return items;
+}
+
+// ============================================================ CORREÇÕES
+function vCorrecoes() {
+  const fila = DB.envios.filter(e => e.status === "corrigir");
+  shell(`<div class="list">${fila.map(e => { const a = aluno(e.aluno), t = atividade(e.atividade); return `<div class="item"><div style="min-width:0;display:flex;gap:10px;align-items:center">${avatar(a)}<div style="min-width:0"><div class="t">${esc(a.nome)}</div><div class="small muted">${esc(t.titulo)} · feita ${fmtDate(e.feito)}</div></div></div>
+    <div class="acts"><span class="badge lvl">${a.nivel}</span><span class="score">${e.acertos}/${e.total}</span><button class="btn primary sm" data-fix="${e.id}">Corrigir escrita</button></div></div>`; }).join("") || `<div class="empty">Nada para corrigir. Quando um aluno terminar uma atividade com escrita, ela aparece aqui.</div>`}</div>`);
+  $$("[data-fix]").forEach(b => b.addEventListener("click", () => go("correcoes", { name: "corrigir", id: b.dataset.fix, back: { tab: "correcoes", view: null } })));
+}
+function reviewHtml(t, e) {
+  const g = grade(t, e.respostas || {}); let n = 0;
+  return t.itens.map((i, k) => { if (i.t === "info") return `<div class="instr">${esc(i.p)}</div>`; n++;
+    if (i.t === "mc") return `<div class="q"><div class="n">Questão ${n}</div><div class="p">${esc(i.p)}</div>${i.o.map((o, j) => `<div class="opt ${j === i.c ? "right" : e.respostas[k] === j ? "wrong" : ""}">${j === i.c ? "✓" : e.respostas[k] === j ? "✕" : "·"} ${esc(o)}</div>`).join("")}</div>`;
+    if (i.t === "gap") { let j = 0; return `<div class="q"><div class="n">Questão ${n}</div><div class="gapline">${esc(i.p).replace(/\[([^\]]+)\]/g, (m, alts) => { const gv = (e.respostas[k] || [])[j], r = g.detail[k][j]; j++; return `<b style="color:${r ? "var(--ok)" : "var(--bad)"}">${esc(gv || "—")}</b>${r ? "" : ` <span class="fix">(${esc(alts.split("|")[0])})</span>`}`; })}</div></div>`; }
+    if (i.t === "tf") return `<div class="q"><div class="n">Questão ${n}</div><div class="p">${esc(i.p)}</div><div class="btns">${[true, false].map(v => `<span class="opt ${v === i.v ? "right" : e.respostas[k] === v ? "wrong" : ""}">${v ? "True" : "False"}</span>`).join("")}</div></div>`;
+    if (i.t === "order") return `<div class="q"><div class="n">Questão ${n}</div><div class="p">${esc(i.p)}</div><div style="color:${g.detail[k] ? "var(--ok)" : "var(--bad)"}">${esc(e.respostas[k] || "—")}</div>${g.detail[k] ? "" : `<div class="fix">${esc(i.s)}</div>`}</div>`;
+    if (i.t === "match") return `<div class="q"><div class="n">Questão ${n}</div><div class="p">${esc(i.p)}</div>${i.pairs.map(([l, r], j) => `<div class="opt ${g.detail[k][j] ? "right" : "wrong"}">${esc(l)} → ${esc((e.respostas[k] || [])[j] || "—")}${g.detail[k][j] ? "" : ` <span class="fix">(${esc(r)})</span>`}</div>`).join("")}</div>`;
+    if (i.t === "media") { n--; return ""; }
+    if (i.t === "write") return `<div class="q"><div class="n">Escrita</div><div class="p">${esc(i.p)}</div><div style="white-space:pre-wrap">${esc(e.respostas[k] || "")}</div></div>`; return ""; }).join("");
+}
+function vCorrigir() {
+  const e = DB.envios.find(x => x.id === UI.view.id), a = aluno(e.aluno), t = atividade(e.atividade), back = UI.view.back;
+  const ws = t.itens.map((i, k) => [i, k]).filter(([i]) => i.t === "write");
+  shell(`<button class="link" id="back" style="align-self:flex-start">‹ Voltar</button>
+    <div class="top"><div><p class="eyebrow">${esc(a.nome)} · ${a.nivel}</p><h2>${esc(t.titulo)}</h2></div><span class="score">${e.acertos}/${e.total} automáticas</span></div>
+    <div class="cols"><div class="stack">${reviewHtml(t, e)}</div>
+      <form class="panel stack" id="gForm"><h3>Correção da escrita</h3>
+        ${ws.map(([i, k]) => `<div class="stack tight"><div class="small muted">${esc(i.p)}</div><div style="white-space:pre-wrap;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:12px">${esc(e.respostas[k] || "(sem resposta)")}</div><div class="hint">${words(e.respostas[k] || "")} palavras${i.min ? ` · mínimo ${i.min}` : ""}</div></div>`).join("") || `<p class="muted">Esta atividade não tem escrita.</p>`}
+        ${ws.length ? `<label>Nota da escrita (0 a 10)<input id="gNota" type="number" min="0" max="10" step="0.5" value="${e.nota_escrita ?? ""}" required></label>
+        <label>Comentário para o aluno<textarea id="gFb" placeholder="Great job! Watch out for…">${esc(e.feedback || "")}</textarea></label>
+        <div class="btns"><button class="btn primary" type="submit">${e.status === "corrigir" ? "Concluir correção" : "Atualizar correção"}</button></div>` : ""}
+      </form></div>`);
+  $("#back").addEventListener("click", () => go(back.tab, back.view));
+  if (ws.length) $("#gForm").addEventListener("submit", ev => { ev.preventDefault(); Object.assign(e, { nota_escrita: +$("#gNota").value, feedback: $("#gFb").value.trim(), status: "feito", corrigido: today() }); save(); go(back.tab, back.view); });
+}
+
+// ============================================================ DOCUMENTOS
+const DOCS = [
+  ["Fundos para Teams e Meet", [["Fundo_Circulos_Rose.png","Fundo círculos · rosé"],["Fundo_Circulos_Amarelo.png","Fundo círculos · amarelo"],["Fundo_Aneis_Rose.png","Fundo anéis · rosé"],["Fundo_Aneis_Amarelo.png","Fundo anéis · amarelo"]]],
+  ["Papelaria", [["Papel_Timbrado_Rose.docx","Papel timbrado · rosé"],["Papel_Timbrado_Amarelo.docx","Papel timbrado · amarelo"],["Cartao_Visita_Rose.pdf","Cartão de visita · rosé"],["Cartao_Visita_Amarelo.pdf","Cartão de visita · amarelo"]]],
+  ["Aulas", [["Material_de_Aula_Rose.docx","Material de aula · rosé"],["Material_de_Aula_Amarelo.docx","Material de aula · amarelo"],["Certificado_Rose.docx","Certificado · rosé"],["Certificado_Amarelo.docx","Certificado · amarelo"]]],
+  ["Identidade da marca", [["Manual_de_Marca_Fabiane_Colaco.pdf","Manual de marca"],["Perfil_FC_Rose.png","Foto de perfil Fc · rosé"],["Perfil_FC_Amarelo.png","Foto de perfil Fc · amarelo"],["Fontes_Playfair_Poppins.zip","Fontes da marca"],["Kit_Marca_Fabiane_Colaco.zip","Kit completo (tudo em um ZIP)"]]]
+];
+const EXT_LABEL = { png: "Imagem PNG", docx: "Word", pdf: "PDF", zip: "ZIP" };
+function vDocumentos() {
+  shell(`<p class="small muted" style="margin:0;max-width:70ch">Tudo o que foi criado para a marca: fundos de reunião, papelaria, materiais de aula e identidade visual. Os arquivos do Word são editáveis; instale as fontes da marca antes de abrir.</p>
+    ${DOCS.map(([g, items]) => `<section class="stack tight"><h3>${g}</h3><div class="grid-cards" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">${items.map(([f, label]) => { const ext = f.split(".").pop(), base = f.replace(/\.[^.]+$/, "");
+      const hasThumb = ext !== "zip";
+      return `<article class="panel stack tight" style="padding:12px">
+        ${hasThumb ? `<button class="docthumb" data-view="${f}" aria-label="Ver ${label}"><img src="docs/thumbs/${base}.jpg" alt="" loading="lazy"></button>` : `<div class="docthumb zip" aria-hidden="true"><span>Fc</span></div>`}
+        <div style="font-weight:500">${label}</div>
+        <div class="btns" style="justify-content:space-between"><span class="badge">${EXT_LABEL[ext] || ext.toUpperCase()}</span><button class="btn sm primary" data-dl="${f}">Baixar</button></div>
+      </article>`; }).join("")}</div></section>`).join("")}
+    <p class="status" id="docStatus" role="status"></p>`);
+  $$("[data-dl]").forEach(b => b.addEventListener("click", () => downloadDoc(b.dataset.dl)));
+  $$("[data-view]").forEach(b => b.addEventListener("click", () => { const f = b.dataset.view, isImg = /\.png$/.test(f), base = f.replace(/\.[^.]+$/, "");
+    openSheet(`<div class="sheet-head"><h2>${esc(f)}</h2><button class="x" aria-label="Fechar">✕</button></div>
+      <img src="docs/${isImg ? f : "thumbs/" + base + ".jpg"}" alt="" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+      ${isImg ? "" : `<p class="hint" style="margin:0">Prévia da primeira página.</p>`}
+      <div class="btns"><button class="btn primary" id="dlNow">Baixar</button></div><p class="status" id="docStatus2"></p>`, true);
+    $("#dlNow").addEventListener("click", () => downloadDoc(f, "#docStatus2")); }));
+}
+async function downloadDoc(f, statusSel = "#docStatus") {
+  const st = $(statusSel); const say = t => { if (st) st.textContent = LANG === "en" ? (I18N[t] || t) : t; };
+  try {
+    const res = await fetch("docs/" + f); if (!res.ok) throw new Error("http");
+    const blob = await res.blob();
+    if (claudeDownloads) { await claudeDownloads.save({ filename: f, data: blob }); say("Arquivo salvo."); return; }
+    const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = f; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); say("Download iniciado.");
+  } catch (e) { say(e && e.code === "declined" ? "Download cancelado." : /\.(docx|zip)$/.test(f) ? "Este arquivo fica disponível no site final. Nesta prévia, use o ZIP do kit de marca." : "Não consegui baixar agora. Tente de novo."); }
+}
+
+// ============================================================ IDIOMA E TEMA
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+let LANG = store.get("fabi_lang", "pt");
+let MODE = store.get("fabi_mode", matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+const PT_M = MONTHS.slice(), PT_WD = WD.slice(), PT_WDF = WD_FULL.slice();
+const EN_M = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const EN_WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], EN_WDF = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+function applyLang() { MONTHS = LANG === "en" ? EN_M : PT_M; WD = LANG === "en" ? EN_WD : PT_WD; WD_FULL = LANG === "en" ? EN_WDF : PT_WDF; document.documentElement.lang = LANG === "en" ? "en" : "pt-BR"; }
+function applyMode() { document.documentElement.dataset.mode = MODE; }
+function togglesHtml() {
+  return `<span class="toggles"><span class="seg" role="group" aria-label="Idioma"><button type="button" data-lang="pt" aria-pressed="${LANG === "pt"}">PT</button><button type="button" data-lang="en" aria-pressed="${LANG === "en"}">EN</button></span>
+    <span class="seg" role="group" aria-label="Tema"><button type="button" data-setmode="light" aria-pressed="${MODE === "light"}">☀ Claro</button><button type="button" data-setmode="dark" aria-pressed="${MODE === "dark"}">☾ Escuro</button></span></span>`;
+}
+function bindToggles() {
+  $$("[data-lang]").forEach(b => b.addEventListener("click", () => { LANG = b.dataset.lang; store.set("fabi_lang", LANG); applyLang(); render(); }));
+  $$("[data-setmode]").forEach(b => b.addEventListener("click", () => { MODE = b.dataset.setmode; store.set("fabi_mode", MODE); applyMode(); render(); }));
+}
+const I18N = {"Painel da professora": "Teacher's dashboard", "Sair": "Log out", "Agenda": "Schedule", "Alunos": "Students", "Financeiro": "Payments", "Atividades": "Activities", "Correções": "Grading", "Documentos": "Documents", "Ajustes": "Settings", "Idioma": "Language", "Tema": "Theme", "☀ Claro": "☀ Light", "☾ Escuro": "☾ Dark", "Demonstração com alunos de exemplo. Os dados ficam só neste navegador.": "Demo with sample students. Data stays in this browser only.", "Fechar": "Close", "Voltar": "Back", "‹ Voltar": "‹ Back", "Cancelar": "Cancel", "Salvar": "Save", "Salvo.": "Saved.", "Confirmar?": "Confirm?", "Remover": "Remove", "Apagar": "Delete", "Entrar no painel": "Sign in", "E-mail": "Email", "Senha": "Password", "Entrar": "Sign in", "Senha incorreta. Tente de novo.": "Wrong password. Try again.", "No site de verdade, a senha é a que ela criar, e só a conta dela entra.": "On the real site, it's the password she creates, and only her account can sign in.", "Demonstração: a senha é": "Demo: the password is", ". No site de verdade, a senha é a que ela criar, e só a conta dela entra.": ". On the real site, it's the password she creates, and only her account can sign in.", "> Instrução ou título de parte\n\n? Pergunta de marcar X\n* resposta certa\n- resposta errada\n\n_ Complete: I [am] from Brazil.\n_ Mais de uma resposta: She [lives|is living] here.\n\nW: Proposta de escrita | 40": "> Instruction or section title\n\n? Multiple-choice question\n* correct answer\n- wrong answer\n\n_ Fill in: I [am] from Brazil.\n_ More than one answer: She [lives|is living] here.\n\nW: Writing prompt | 40", "Semana anterior": "Previous week", "Próxima semana": "Next week", "Hoje": "Today", "Mostrar horários livres": "Show free time", "Aula": "Class", "Reposição": "Make-up", "Extra": "Extra", "Falta": "Absence", "Cancelada": "Cancelled", "Sem aulas": "No classes", "Livre": "Free", "Disponibilidade padrão": "Default availability", "Disponibilidade só desta semana": "Custom availability this week", "Editar disponibilidade desta semana": "Edit this week's availability", "Toque numa aula para marcar falta, cancelar ou remarcar. Os horários livres vêm da sua disponibilidade em": "Tap a class to mark an absence, cancel or reschedule. Free time comes from your availability in", "Disponibilidade desta semana": "This week's availability", "Mudanças aqui valem só para esta semana. A próxima continua com o seu padrão (aba Ajustes).": "Changes here apply to this week only. Next week goes back to your default (Settings tab).", "+ Faixa": "+ Time range", "às": "to", "Início": "Start", "Fim": "End", "Salvar só para esta semana": "Save for this week only", "Voltar ao padrão": "Back to default", "O que aconteceu?": "What happened?", "Observação (opcional)": "Note (optional)", "Ex.: avisou que estava doente": "E.g. said they were sick", "✕ Marcar falta": "✕ Mark absence", "Cancelar aula (eu cancelei / feriado)": "Cancel class (I cancelled / holiday)", "Falta do aluno continua na cobrança do mês. Aula cancelada por você sai da cobrança.": "Student absences are still charged. Classes you cancel are not charged.", "Desfazer (voltar para aula normal)": "Undo (back to regular class)", "Apagar reposição": "Delete make-up class", "Apagar aula extra": "Delete extra class", "Abrir perfil do aluno": "Open student profile", "Aula normal": "Regular class", "Falta do aluno": "Student absence", "Cancelada pela professora": "Cancelled by teacher", "Aula extra": "Extra class", "Reposição marcada": "Make-up class booked", "Remarcar (opcional)": "Reschedule (optional)", "Dia": "Day", "Duração (min)": "Length (min)", "Horários livres nesse dia": "Free time on this day", "Ou digite o horário": "Or type the time", "Marcar reposição": "Book make-up class", "Nenhum horário livre nesse dia.": "No free time on this day.", "Escolha um horário livre ou digite um.": "Pick a free time or type one.", "Escolha um horário.": "Pick a time.", "Domingo": "Sunday", "Segunda": "Monday", "Terça": "Tuesday", "Quarta": "Wednesday", "Quinta": "Thursday", "Sexta": "Friday", "Sábado": "Saturday", "+ Novo aluno": "+ New student", "Buscar aluno…": "Search student…", "Buscar aluno": "Search student", "Filtrar por nível": "Filter by level", "Nenhum aluno encontrado.": "No students found.", "Sem horário": "No schedule", "Inativo": "Inactive", "‹ Todos os alunos": "‹ All students", "‹ Alunos": "‹ Students", "‹ Voltar ao perfil": "‹ Back to profile", "Novo aluno": "New student", "Editar aluno": "Edit student", "Quem é": "About", "Nome completo *": "Full name *", "Nome completo": "Full name", "Como chamar (no card e no portal)": "Nickname (card and portal)", "Ex.: Leti": "E.g. Leti", "Nível": "Level", "Cidade / país": "City / country", "Ex.: Carlópolis (PR)": "E.g. Carlópolis (PR)", "Início das aulas": "Start date", "Aluno ativo (aparece na agenda e no financeiro)": "Active student (shows in schedule and payments)", "Contato": "Contact", "Telefone / WhatsApp 1": "Phone / WhatsApp 1", "(opcional)": "(optional)", "Telefone 2": "Phone 2", "Responsável": "Guardian", "(se for menor de idade)": "(if under 18)", "Nome e parentesco": "Name and relationship", "Telefone do responsável": "Guardian's phone", "Como chegou até você": "How they found you", "Origem": "Source", "Indicado por": "Referred by", "(se foi indicação)": "(if referred)", "Indicação": "Referral", "Ex-aluno": "Former student", "Outro": "Other", "Aulas na semana": "Weekly classes", "Horário": "Time", "+ Adicionar horário": "+ Add time slot", "Nenhum horário. Adicione os dias e horários fixos do aluno.": "No time slots. Add the student's regular days and times.", "Cobrança": "Billing", "Modo de cobrança": "Billing mode", "Por aula": "Per class", "Valor fixo mensal": "Fixed monthly fee", "Aulas cobradas por semana": "Classes charged per week", "Valor por aula (R$)": "Price per class (R$)", "Valor mensal (R$)": "Monthly fee (R$)", "Card da mensalidade": "Payment card", "Saudação": "Greeting", "Cor": "Color", "Rosé": "Rosé", "Amarelo": "Yellow", "Mostrar Pix": "Show Pix", "Observação privada": "Private note", "Objetivos, dificuldades, combinados… (o aluno não vê)": "Goals, difficulties, agreements… (students don't see this)", "Cadastrar aluno": "Add student", "Salvar alterações": "Save changes", "Digite o nome do aluno.": "Type the student's name.", "Editar dados": "Edit details", "Copiar link do aluno": "Copy student link", "Link copiado!": "Link copied!", "Sem telefone": "No phone", "Cidade não informada": "No city", "Faltas no mês": "Absences this month", "Acertos": "Score", "Calendário de aulas": "Class calendar", "Mês anterior": "Previous month", "Próximo mês": "Next month", "+ Aula extra / reposição avulsa": "+ Extra / make-up class", "Toque numa aula do calendário para marcar falta ou remarcar.": "Tap a class in the calendar to mark an absence or reschedule.", "Aula extra ou reposição": "Extra or make-up class", "Reposição (não cobra)": "Make-up (not charged)", "Aula extra (cobra)": "Extra class (charged)", "Marcar": "Book", "Enviar atividade…": "Send activity…", "Escolher atividade": "Choose activity", "Enviar": "Send", "Escolha uma atividade.": "Choose an activity.", "Nenhuma atividade enviada.": "No activities sent.", "Pendente": "Pending", "Escrita p/ corrigir": "Writing to grade", "Concluída": "Done", "Corrigir": "Grade", "Ver": "View", "Cancelar envio": "Cancel", "1 reposição marcada": "1 make-up class booked", "Observação privada · o aluno não vê": "Private note · students don't see this", "Salva sozinha enquanto você digita.": "Saves automatically as you type.", "Diário de aula": "Class diary", "Data": "Date", "Assunto da aula": "Class topic", "Ex.: Past simple": "E.g. Past simple", "Anotações": "Notes", "O que foi conversado, dificuldades, vocabulário novo…": "What you talked about, difficulties, new vocabulary…", "Mostrar o assunto para o aluno": "Show the topic to the student", "O diário é só seu. As anotações nunca aparecem para o aluno.": "The diary is yours only. Notes never show to students.", "Salvar anotação": "Save entry", "Nenhuma aula registrada.": "No classes logged.", "Aluno vê o assunto": "Student sees topic", "Privado": "Private", "valor fixo mensal": "fixed monthly fee", "Gerar mensalidades": "Create monthly payments", "Mês já gerado": "Month already created", "Previsto": "Expected", "Recebido": "Received", "pelo calendário dos alunos ativos": "from active students' calendars", "Criar imagem": "Create image", "Pago": "Paid", "Imagem de": "Image for", "Datas das aulas (dias do mês)": "Class dates (days of the month)", "Total (R$)": "Total (R$)", "Baixar imagem": "Download image", "Compartilhar": "Share", "Copiar mensagem": "Copy message", "Se o botão não baixar, toque e segure (ou clique com o botão direito) na imagem e salve.": "If the button doesn't download, tap and hold (or right-click) the image to save it.", "Prévia da imagem da mensalidade": "Payment image preview", "Imagem salva.": "Image saved.", "Imagem baixada.": "Image downloaded.", "Mensagem copiada.": "Message copied.", "Download cancelado ou indisponível. Toque e segure na imagem para salvar.": "Download cancelled or unavailable. Tap and hold the image to save it.", "+ Nova atividade": "+ New activity", "Copie do Word, cole no editor e marque as respostas com os símbolos.": "Copy from Word, paste into the editor and mark the answers with the symbols.", "Editar": "Edit", "‹ Atividades": "‹ Activities", "Nova atividade": "New activity", "Editar atividade": "Edit activity", "Título": "Title", "Ex.: Past simple · My weekend": "E.g. Past simple · My weekend", "Tipo": "Type", "Marcar X": "Multiple choice", "Completar": "Fill in", "Escrita": "Writing", "Híbrida": "Mixed", "Música": "Music", "Link do YouTube": "YouTube link", "Letra da música": "Song lyrics", "(cole a letra e coloque entre [colchetes] as palavras para completar)": "(paste the lyrics and put the words to fill in [brackets])", "Vocabulário e pronúncia": "Vocabulary & pronunciation", "(palavra = como se fala = tradução)": "(word = how to say it = translation)", "Conteúdo": "Content", "Salvar atividade": "Save activity", "Excluir atividade": "Delete activity", "Como escrever": "How to write", "Contagem": "Count", "O número depois do | é o mínimo de palavras.": "The number after | is the minimum word count.", "A atividade está vazia. Use ? * - _ W: para criar as questões.": "The activity is empty. Use ? * - _ W: to create questions.", "Prévia de como o aluno vê (com as respostas certas marcadas).": "Preview of what the student sees (correct answers marked).", "▶ Ouvir no YouTube": "▶ Listen on YouTube", "Letra para completar": "Lyrics to complete", "Questão": "Question", "Vai para a sua fila de correção.": "Goes to your grading queue.", "Nada para corrigir. Quando um aluno terminar uma atividade com escrita, ela aparece aqui.": "Nothing to grade. When a student finishes an activity with writing, it shows up here.", "Corrigir escrita": "Grade writing", "Correção da escrita": "Writing grade", "Nota da escrita (0 a 10)": "Writing grade (0–10)", "Comentário para o aluno": "Comment for the student", "Concluir correção": "Finish grading", "Atualizar correção": "Update grade", "Esta atividade não tem escrita.": "This activity has no writing.", "(sem resposta)": "(no answer)", "Fundos para Teams e Meet": "Teams & Meet backgrounds", "Papelaria": "Stationery", "Aulas": "Classes", "Identidade da marca": "Brand identity", "Tudo o que foi criado para a marca: fundos de reunião, papelaria, materiais de aula e identidade visual. Os arquivos do Word são editáveis; instale as fontes da marca antes de abrir.": "Everything created for the brand: meeting backgrounds, stationery, class materials and visual identity. Word files are editable; install the brand fonts before opening them.", "Baixar": "Download", "Imagem PNG": "PNG image", "Prévia da primeira página.": "First page preview.", "Arquivo salvo.": "File saved.", "Download iniciado.": "Download started.", "Download cancelado.": "Download cancelled.", "Não consegui baixar agora. Tente de novo.": "Couldn't download right now. Try again.", "Este arquivo fica disponível no site final. Nesta prévia, use o ZIP do kit de marca.": "This file is available on the final site. In this preview, use the brand kit ZIP.", "Fundo círculos · rosé": "Circles background · rosé", "Fundo círculos · amarelo": "Circles background · yellow", "Fundo anéis · rosé": "Rings background · rosé", "Fundo anéis · amarelo": "Rings background · yellow", "Papel timbrado · rosé": "Letterhead · rosé", "Papel timbrado · amarelo": "Letterhead · yellow", "Cartão de visita · rosé": "Business card · rosé", "Cartão de visita · amarelo": "Business card · yellow", "Material de aula · rosé": "Lesson worksheet · rosé", "Material de aula · amarelo": "Lesson worksheet · yellow", "Certificado · rosé": "Certificate · rosé", "Certificado · amarelo": "Certificate · yellow", "Manual de marca": "Brand guide", "Foto de perfil Fc · rosé": "Fc profile picture · rosé", "Foto de perfil Fc · amarelo": "Fc profile picture · yellow", "Fontes da marca": "Brand fonts", "Kit completo (tudo em um ZIP)": "Full kit (everything in one ZIP)", "Importar do Word": "Import from Word", "Buscar atividade…": "Search activity…", "Buscar atividade": "Search activity", "Todos os tipos": "All types", "Todas as pastas": "All folders", "Pasta": "Folder", "Todos": "All", "Nenhuma atividade com esses filtros.": "No activities match these filters.", "Duplicar": "Duplicate", "Sem pasta": "No folder", "Gramática": "Grammar", "Falar de si": "About me", "Músicas": "Songs", "Vocabulário": "Vocabulary", "Listening": "Listening", "Instrução": "Instruction", "Verdadeiro ou falso": "True or false", "Ligar colunas": "Match columns", "Ordenar frase": "Sentence order", "Áudio ou vídeo": "Audio or video", "Pasta / tema": "Folder / topic", "Ex.: Verbos, Viagem": "E.g. Verbs, Travel", "Resumo": "Summary", "Dicas": "Tips", "Adicionar": "Add", "Ver como o aluno": "Preview as student", "Tudo certo para salvar.": "Ready to save.", "Dê um título para a atividade.": "Give the activity a title.", "Corrija os itens marcados no resumo antes de salvar.": "Fix the items flagged in the summary before saving.", "Adicione pelo menos uma questão.": "Add at least one question.", "Adicione a primeira questão abaixo.": "Add the first question below.", "Subir": "Move up", "Descer": "Move down", "Excluir": "Delete", "Texto da instrução": "Instruction text", "Ex.: Part 1 · Choose the correct option.": "E.g. Part 1 · Choose the correct option.", "Pergunta": "Question", "Ex.: She ___ to work by bus.": "E.g. She ___ to work by bus.", "Opções (toque no círculo da resposta certa)": "Options (tap the circle of the correct answer)", "Resposta certa": "Correct answer", "Remover opção": "Remove option", "+ Opção": "+ Option", "Afirmação": "Statement", "Ex.: Carlópolis has a big lake.": "E.g. Carlópolis has a big lake.", "Resposta certa:": "Correct answer:", "Frase": "Sentence", "Ex.: My friends are very nice.": "E.g. My friends are very nice.", "Virar lacuna": "Make it a blank", "Selecione a palavra na frase antes.": "Select the word in the sentence first.", "Respostas:": "Answers:", "Nenhuma lacuna ainda.": "No blanks yet.", "Instrução ": "Instruction", "Pares (esquerda → direita)": "Pairs (left → right)", "Ex.: breakfast": "E.g. breakfast", "Ex.: café da manhã": "E.g. café da manhã", "Remover par": "Remove pair", "+ Par": "+ Pair", "Frase na ordem certa": "Sentence in the correct order", "Ex.: I usually drink coffee in the morning": "E.g. I usually drink coffee in the morning", "O aluno vê assim:": "The student sees:", "Proposta de escrita": "Writing prompt", "Ex.: Write 5 sentences about your weekend.": "E.g. Write 5 sentences about your weekend.", "Mínimo de palavras": "Minimum words", "Link do áudio ou vídeo (YouTube, Drive, Spotify…)": "Audio or video link (YouTube, Drive, Spotify…)", "Legenda ou instrução": "Caption or instruction", "Ex.: Listen and answer the questions below.": "E.g. Listen and answer the questions below.", "▶ Abrir áudio/vídeo": "▶ Open audio/video", "O aluno vê a coluna da direita embaralhada.": "The student sees the right column shuffled.", "(cole a letra; selecione uma palavra e toque em \"Virar lacuna\")": "(paste the lyrics; select a word and tap \"Make it a blank\")", "Envie o arquivo .docx da atividade ou cole o texto. O painel separa perguntas, opções e lacunas, e você revisa antes de salvar.": "Upload the activity's .docx file or paste the text. The dashboard splits questions, options and blanks, and you review before saving.", "Escolher arquivo .docx": "Choose .docx file", "Ou cole o texto aqui": "Or paste the text here", "Transformar em atividade": "Turn into activity", "Como o painel entende": "How the dashboard reads it", "Lendo o arquivo…": "Reading the file…", "Não encontrei questões nesse conteúdo.": "I couldn't find questions in this content.", "Escolha um arquivo ou cole o texto.": "Choose a file or paste the text.", "Não consegui ler esse arquivo. Confira se é .docx (Word) ou cole o texto.": "I couldn't read this file. Check that it's a .docx (Word) file or paste the text.", "Salvando…": "Saving…", "Tudo salvo": "All saved", "Sem conexão: não salvou. Tente de novo.": "Offline: not saved. Try again.", "Atualizado com o que foi salvo em outro aparelho.": "Updated with changes saved on another device.", "Entrando…": "Signing in…", "E-mail ou senha incorretos.": "Wrong email or password.", "Não consegui entrar agora. Confira a internet e tente de novo.": "Couldn't sign in. Check your connection and try again.", "Entrei, mas não consegui carregar os dados. Recarregue a página.": "Signed in, but couldn't load the data. Reload the page.", "Carregando…": "Loading…", "Trocar senha": "Change password", "Nova senha": "New password", "Repita a nova senha": "Repeat the new password", "As senhas não são iguais.": "Passwords don't match.", "Não consegui trocar a senha. Use pelo menos 8 caracteres.": "Couldn't change the password. Use at least 8 characters.", "Senha trocada.": "Password changed.", "Vale para todas as semanas. Se uma semana for diferente, edite só ela na Agenda, em \"Editar disponibilidade desta semana\": a semana seguinte volta para este padrão.": "Applies to every week. If one week is different, edit just that week in Schedule (\"Edit this week's availability\"); the following week goes back to this default.", "Tamanho do bloco livre (min)": "Free slot size (min)", "Salvar padrão": "Save default", "Disponibilidade padrão salva.": "Default availability saved.", "Pix e card da mensalidade": "Pix and payment card", "Chave Pix": "Pix key", "Nome do recebedor": "Recipient name", "Cidade no Pix": "City (Pix)", "WhatsApp no rodapé": "WhatsApp in footer", "Mensagem final": "Closing message", "No site de verdade, a Fabi entra com e-mail e senha pelo Supabase e pode trocar a senha aqui. Ninguém mais tem acesso ao painel.": "On the real site, Fabi signs in with email and password (Supabase) and can change her password here. No one else can access the dashboard.", "Demonstração": "Demo", "Apaga tudo que você mudou e volta aos alunos de exemplo.": "Erases your changes and restores the sample students.", "Recomeçar exemplo": "Reset demo", "Apagar alterações? Toque de novo": "Erase changes? Tap again"};
+const I18N_RX = [
+ [/^(\d+) atividades na biblioteca$/, "$1 activities in the library"],
+ [/^(\d+) questões · (\d+) pontos automáticos · (\d+) de escrita · enviada (\d+)×$/, "$1 questions · $2 auto-graded points · $3 writing · sent $4×"],
+ [/^(\d+) questões · (\d+) pontos automáticos · enviada (\d+)×$/, "$1 questions · $2 auto-graded points · sent $3×"],
+ [/^(\d+) questões$/, "$1 questions"], [/^1 questão$/, "1 question"], [/^1 ponto automático$/, "1 auto-graded point"], [/^(\d+) pontos automáticos$/, "$1 auto-graded points"],
+ [/^(.+) · (\d+)$/, (m, a, n) => I18N[a] ? `${I18N[a]} · ${n}` : m],
+ [/^Opção (\d+)$/, "Option $1"],
+ [/^• Questão (\d+): (.+)$/, (m, n, t) => `• Question ${n}: ${({ "falta o enunciado.": "missing the question text.", "precisa de pelo menos 2 opções.": "needs at least 2 options.", "marque a resposta certa.": "mark the correct answer.", "selecione a palavra e toque em \"Virar lacuna\".": "select the word and tap \"Make it a blank\".", "tem lacuna sem resposta.": "has a blank without an answer.", "precisa de pelo menos 2 pares.": "needs at least 2 pairs.", "escreva a frase na ordem certa.": "write the sentence in the correct order.", "cole o link do áudio ou vídeo.": "paste the audio or video link." })[t] || t}`],
+ [/^Importei (\d+) questões\. (\d+) ponto\(s\) precisam de revisão: veja o resumo à direita\.$/, "Imported $1 questions. $2 item(s) need review: see the summary on the right."],
+ [/^Importei (\d+) questões\. Revise e salve\.$/, "Imported $1 questions. Review and save."],
+ [/^Resposta: (.+)$/, "Answer: $1"],
+ [/^(.+) \(cópia\)$/, "$1 (copy)"],
+ [/^(\d+) alunos ativos$/, "$1 active students"],
+ [/^(\d+) aulas · ([\d.]+) h$/, "$1 classes · $2 h"],
+ [/^Correções \((\d+)\)$/, "Grading ($1)"],
+ [/^Todos \((\d+)\)$/, "All ($1)"],
+ [/^(\d+) alunos?$/, "$1 student(s)"],
+ [/^(\d+) aluno\(s\)$/, "$1 student(s)"],
+ [/^Nível (A1|A2|B1|B2|C1|C2)$/, "Level $1"],
+ [/^(\d+)% acertos$/, "$1% correct"],
+ [/^(\d+) p\/ corrigir$/, "$1 to grade"],
+ [/^(\d+) min · falta$/, "$1 min · absence"], [/^(\d+) min · cancelada$/, "$1 min · cancelled"], [/^(\d+) min · reposição$/, "$1 min · make-up"], [/^(\d+) min · extra$/, "$1 min · extra"],
+ [/^(\d+) encontros? por semana · (\d+) min no total$/, "$1 session(s) per week · $2 min total"],
+ [/^= (R\$ [\d.,]+) por encontro$/, "= $1 per session"],
+ [/^Em (\S+): (\d+) encontros → (R\$ [\d.,]+)\. O valor de cada mês é calculado pelo calendário \(quantas aulas caem naquele mês\)\.$/, "This month: $2 sessions → $3. Each month's amount comes from the calendar (how many classes fall in that month)."],
+ [/^Mensalidade (\S+)$/, "Payment · $1"],
+ [/^(\d+) encontros × (R\$ [\d.,]+)$/, "$1 sessions × $2"],
+ [/^(\d+) reposições marcadas$/, "$1 make-up classes booked"],
+ [/^(\d+) atividades? feitas?$/, "$1 activities done"],
+ [/^Chegou por: (.+?)( \(.+\))? · aluno desde (.+)$/, (m, o, i, d) => `Came via: ${I18N[o] || o}${i || ""} · student since ${d}`],
+ [/^Sem telefone · Resp\.: (.+)$/, "No phone · Guardian: $1"], [/^(.+) · Resp\.: (.+)$/, "$1 · Guardian: $2"],
+ [/^Resp\.: /, "Guardian: "],
+ [/^(\S+) · enviada (\S+) · feita (\S+)$/, "$1 · sent $2 · done $3"], [/^(\S+) · enviada (\S+)$/, "$1 · sent $2"],
+ [/^Escrita ([\d.]+)\/10$/, "Writing $1/10"],
+ [/^Gerar mensalidades \((\d+)\)$/, "Create payments ($1)"],
+ [/^(\d+) mensalidades geradas$/, "$1 payments created"],
+ [/^(\d+) aulas?: (.+)$/, "$1 classes: $2"],
+ [/^✓ Pago (.+)$/, "✓ Paid $1"],
+ [/^(\d+) mensalidade\(s\) criada\(s\)\. Toque em "Criar imagem" para mandar a cada aluno\.$/, "$1 payment(s) created. Tap \"Create image\" to send to each student."],
+ [/^Faltam (.+)\. O botão de gerar cria só as que faltam\.$/, "Missing: $1. The create button only adds the missing ones."],
+ [/^(\d+) itens · (\d+) corrigidos sozinhos · tem escrita · enviada (\d+)×$/, "$1 items · $2 auto-graded · has writing · sent $3×"],
+ [/^(\d+) itens · (\d+) corrigidos sozinhos · enviada (\d+)×$/, "$1 items · $2 auto-graded · sent $3×"],
+ [/^(\d+) de marcar$/, "$1 multiple choice"], [/^(\d+) lacunas$/, "$1 blanks"], [/^(\d+) de escrita$/, "$1 writing"],
+ [/^(\S+) · feita (\S+)$/, "$1 · done $2"],
+ [/^(\d+)\/(\d+) automáticas$/, "$1/$2 auto-graded"],
+ [/^(\d+) palavras · mínimo (\d+)$/, "$1 words · minimum $2"], [/^(\d+) palavras$/, "$1 words"],
+ [/^Mínimo de (\d+) palavras\. Vai para a sua fila de correção\.$/, "Minimum $1 words. Goes to your grading queue."],
+ [/^Questão (\d+)$/, "Question $1"],
+ [/^Salvo às (.+)$/, "Saved at $1"],
+ [/^Ver (.+)$/, (m, x) => "View " + (I18N[x] || x)],
+ [/^(.+): (pago|pendente)\. Alternar$/, "$1: toggle paid"],
+ [/^Imagem de (.+)$/, "Image for $1"],
+ [/^Nenhuma mensalidade gerada para (\S+)\. Toque em$/, "No payments created for this month yet. Tap"],
+ [/^: os valores saem do calendário de cada aluno \(faltas são cobradas, aulas canceladas por você não\)\.$/, ": amounts come from each student's calendar (absences are charged, classes you cancel are not)."],
+ [/^(\d{2}\/\d{2}) a (\d{2}\/\d{2})$/, "$1 to $2"],
+ [/^Calendário de (.+)$/, "$1 calendar"],
+ [/^Reposição da aula de (.+)$/, "Make-up for the class on $1"],
+ [/^(.+), (\d{2}\/\d{2}\/\d{4}) às (.+)$/, "$1, $2 at $3"]
+];
+function trText(t) {
+  const lead = t.match(/^\s*/)[0], trail = t.match(/\s*$/)[0], core = t.trim();
+  if (!core) return t;
+  if (I18N[core]) return lead + I18N[core] + trail;
+  for (const [rx, rep] of I18N_RX) { if (rx.test(core)) return lead + core.replace(rx, rep) + trail; }
+  return t;
+}
+function translate(root) {
+  if (LANG !== "en" || !root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let n = w.currentNode; n; n = w.nextNode()) {
+    if (n.nodeType === 3) { const p = n.parentElement; if (!p || p.closest("textarea,script,style,[data-notr]")) continue; const v = trText(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; }
+    else for (const at of ["placeholder", "aria-label", "title"]) { const v = n.getAttribute && n.getAttribute(at); if (v) { const t = trText(v); if (t !== v) n.setAttribute(at, t); } }
+  }
+}
+new MutationObserver(ms => { if (LANG !== "en") return; for (const m of ms) { if (m.type === "characterData") { const v = trText(m.target.nodeValue); if (v !== m.target.nodeValue) m.target.nodeValue = v; } else m.addedNodes.forEach(n => n.nodeType === 1 ? translate(n) : (n.nodeType === 3 && n.parentElement && !n.parentElement.closest("textarea,[data-notr]") && (n.nodeValue = trText(n.nodeValue)))); } })
+  .observe(document.body, { subtree: true, childList: true, characterData: true });
+
+// ============================================================ AJUSTES
+function vAjustes() {
+  const c = DB.ajustes;
+  shell(`<div class="cols">
+    <form class="panel stack" id="dispForm"><h3>Disponibilidade padrão</h3>
+      <p class="hint" style="margin:0">Vale para todas as semanas. Se uma semana for diferente, edite só ela na Agenda, em "Editar disponibilidade desta semana": a semana seguinte volta para este padrão.</p>
+      <div class="stack" id="dispList">${WEEK_ORDER.map(d => `<div class="item" style="align-items:start"><div class="stack tight"><b style="font-weight:500">${WD_FULL[d]}</b>
+        <div class="stack tight" data-day="${d}">${(c.disponibilidade[d] || []).map(([s, e]) => rangeRow(s, e)).join("")}</div></div>
+        <div class="acts"><button type="button" class="btn sm" data-add="${d}">+ Faixa</button></div></div>`).join("")}</div>
+      <label style="max-width:220px">Tamanho do bloco livre (min)<select id="passo">${[15, 30, 45, 60].map(n => `<option ${c.passo === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <div class="btns"><button class="btn primary" type="submit">Salvar padrão</button></div><p class="status" id="dStatus"></p></form>
+    <div class="stack">
+      <form class="panel stack" id="pixForm"><h3>Pix e card da mensalidade</h3>
+        <div class="row"><label>Chave Pix<input id="cKey" value="${esc(c.pix_chave)}"></label><label>Nome do recebedor<input id="cName" value="${esc(c.pix_nome)}"></label></div>
+        <div class="row"><label>Cidade no Pix<input id="cCity" value="${esc(c.pix_cidade)}"></label><label>WhatsApp no rodapé<input id="cPhone" value="${esc(c.telefone)}"></label></div>
+        <label>Mensagem final<input id="cThanks" value="${esc(c.obrigado)}"></label>
+        <div class="btns"><button class="btn primary" type="submit">Salvar</button></div><p class="status" id="pStatus"></p></form>
+      ${PROD ? `<form class="panel stack tight" id="pwForm"><h3>Trocar senha</h3>
+        <label>Nova senha<input type="password" id="pw1" autocomplete="new-password" minlength="8" required></label>
+        <label>Repita a nova senha<input type="password" id="pw2" autocomplete="new-password" minlength="8" required></label>
+        <div class="btns"><button class="btn primary" type="submit">Trocar senha</button></div><p class="status" id="pwStatus" role="status"></p></form>`
+      : `<section class="panel stack tight"><h3>Senha</h3><p class="small muted" style="margin:0">No site de verdade, a Fabi entra com e-mail e senha pelo Supabase e pode trocar a senha aqui. Ninguém mais tem acesso ao painel.</p></section>
+      <section class="panel stack tight"><h3>Demonstração</h3><p class="small muted" style="margin:0">Apaga tudo que você mudou e volta aos alunos de exemplo.</p><div class="btns"><button class="btn sm" id="reset">Recomeçar exemplo</button></div></section>`}
+    </div></div>`);
+  const bindRm = () => $$("[data-rmr]").forEach(b => b.onclick = () => b.closest(".rr").remove());
+  $$("[data-add]").forEach(b => b.addEventListener("click", () => { $(`[data-day="${b.dataset.add}"]`).insertAdjacentHTML("beforeend", rangeRow("08:00", "12:00")); bindRm(); })); bindRm();
+  $("#dispForm").addEventListener("submit", e => { e.preventDefault(); const out = {};
+    WEEK_ORDER.forEach(d => out[d] = $$(`[data-day="${d}"] .rr`).map(r => [$("input[data-s]", r).value, $("input[data-e]", r).value]).filter(([s, e2]) => s && e2 && s < e2));
+    c.disponibilidade = out; c.passo = +$("#passo").value; save(); $("#dStatus").textContent = "Disponibilidade padrão salva."; });
+  $("#pixForm").addEventListener("submit", e => { e.preventDefault(); Object.assign(c, { pix_chave: $("#cKey").value.trim(), pix_nome: $("#cName").value.trim(), pix_cidade: $("#cCity").value.trim(), telefone: $("#cPhone").value.trim(), obrigado: $("#cThanks").value.trim() }); save(); $("#pStatus").textContent = "Salvo."; });
+  if ($("#reset")) confirmBtn($("#reset"), "Apagar alterações? Toque de novo", () => { DB = seed(); save(); go("agenda"); });
+  if ($("#pwForm")) $("#pwForm").addEventListener("submit", async e => { e.preventDefault(); const st = $("#pwStatus"), say = t => { st.textContent = t; translate(st); };
+    if ($("#pw1").value !== $("#pw2").value) { say("As senhas não são iguais."); return; }
+    const { error } = await sb.auth.updateUser({ password: $("#pw1").value }); say(error ? "Não consegui trocar a senha. Use pelo menos 8 caracteres." : "Senha trocada."); if (!error) e.target.reset(); });
+}
+const rangeRow = (s, e) => `<div class="rr btns" style="gap:6px"><input type="time" data-s value="${s}" style="width:auto" aria-label="Início"><span class="muted">às</span><input type="time" data-e value="${e}" style="width:auto" aria-label="Fim"><button type="button" class="link danger" data-rmr>Remover</button></div>`;
+
+// ============================================================ início
+load(); applyLang(); applyMode();
+if (PROD) { logged = false; DB = starterDB(); }
+const fontsReady = document.fonts && document.fonts.load ? Promise.all(['500 40px "Playfair Display"','italic 400 34px "Playfair Display"','600 84px "Playfair Display"','400 16px "Poppins"','500 30px "Poppins"'].map(f => document.fonts.load(f))).catch(() => {}) : Promise.resolve();
+if (PROD) { app.innerHTML = `<p class="muted" style="text-align:center;margin-top:20vh">Carregando…</p>`;
+  sb.auth.getSession().then(async ({ data }) => { if (data.session) { try { await loadRemote(); logged = true; } catch (e) {} } render(); });
+} else render();
+})();
+</script>
+
+</body>
+</html>
