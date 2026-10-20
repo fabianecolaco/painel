@@ -107,3 +107,20 @@ O que tem de novo:
 - **Conquistas:** 8 selos na página do aluno (aparecem também no perfil, para a Fabi).
 - **Explicação:** nas questões de marcar X e verdadeiro/falso, um campo "Explicação" que o aluno vê quando erra. No Word, escreva numa linha logo depois das opções: `Explicação: ...`.
 - **📲 Instalar app:** botão no topo do painel e da página do aluno. No iPhone: Safari → Compartilhar → Adicionar à Tela de Início. No Android e no computador (Chrome/Edge): o botão já instala.
+
+---
+
+## Atualização · saldo de reposição
+
+1. **Supabase → SQL Editor:** rode de novo o `supabase/portal.sql` inteiro (a regra de reposição agora usa o saldo).
+2. **GitHub:** suba o `index.html` e a pasta `aluno` novos.
+
+Como funciona:
+- **Saldo** = ajuste manual + faltas − reposições. Não vence.
+- **Ajuste do saldo** (no perfil do aluno, em Reposições): para lançar aulas antigas de uma vez (ex.: 8). Número negativo tira.
+- **Aluno:** pede quantas reposições quiser enquanto tiver saldo, sempre em horário livre e com 48h de antecedência, e diz qual aula faltada cada uma repõe (uma falta da lista, "aula antiga" ou outra data).
+- **Fabi aceita:** o pedido reserva o horário e aparece no topo da Agenda (aba "Agenda ⏳") e no perfil do aluno. ✓ Aceitar confirma; ✕ Recusar libera o horário e devolve o crédito. Reposições que a própria Fabi marca (lote, avulsa ou no modo aula) já entram confirmadas.
+- **Trocar a falta de referência:** toque na reposição na Agenda e escolha "Qual aula faltada esta reposição repõe".
+- **Fabi em lote:** "Marcar reposições em lote" escolhe dia e horário fixo e agenda uma por semana, pulando conflitos.
+- **Falta na reposição:** na Agenda, toque na reposição e escolha "Faltou · devolver crédito" ou "Faltou · perder crédito".
+- **Como saber o que foi:** na Agenda aparece "reposição de 05/10"; no calendário, ↺ antes do horário; no perfil, o histórico mostra cada falta e cada reposição, quem marcou e se foi feita.

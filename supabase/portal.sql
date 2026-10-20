@@ -8,6 +8,8 @@
 --  • portal_get devolve só o que é dele: atividades, notas, aulas,
 --    mensalidades e assuntos marcados como visíveis. Nada de observações
 --    privadas, telefones, anotações do diário ou dados de outros alunos.
+--  • Reposição: o aluno pede quantas quiser enquanto tiver saldo (ajuste + faltas − reposições);
+--    o pedido reserva o horário e a Fabi aceita ou recusa no painel (recusada devolve o crédito).
 --  • O que o aluno faz (respostas, tema da página, reposição) vai para a
 --    caixa "portal_inbox". O painel da Fabi busca essa caixa, aplica e apaga.
 --  • 8 PINs errados em 15 minutos bloqueiam o link por 15 minutos.
@@ -81,7 +83,7 @@ begin
                            from jsonb_array_elements(coalesce(d->'alunos', '[]')) x where x->>'id' <> aid), '[]'),
       'eventos', coalesce((select jsonb_agg(z) from (
           select jsonb_build_object('aluno', 'o' || md5(e->>'aluno'), 'data', e->'data', 'hora', e->'hora', 'dur', e->'dur', 'tipo', e->'tipo') z
-            from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' <> aid
+            from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' <> aid and coalesce(e->>'aprovacao', '') <> 'recusada'
           union all
           select jsonb_build_object('aluno', 'o' || md5(i.aluno_id), 'data', i.payload->'data', 'hora', i.payload->'hora', 'dur', i.payload->'dur', 'tipo', 'reposicao')
             from portal_inbox i where i.owner = au.o_owner and i.tipo = 'reposicao' and i.aluno_id <> aid) q), '[]')),
@@ -101,7 +103,7 @@ end $$;
 -- ---------------------------------------------------------------- enviar
 create or replace function public.portal_post(p_token text, p_pin text, p_tipo text, p_payload jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare au record; aid text; d jsonb; ref text; dt date; hr time; du int; st timestamp; agora timestamp; dow int; wk text; av jsonb; foto text;
+declare au record; aid text; d jsonb; ref text; saldo int; dt date; hr time; du int; st timestamp; agora timestamp; dow int; wk text; av jsonb; foto text;
 begin
   select * into au from _portal_auth(p_token, p_pin);
   if au.o_erro is not null then return jsonb_build_object('erro', au.o_erro); end if;
@@ -138,12 +140,17 @@ begin
     du := coalesce((au.o_aluno#>>'{aulas,0,dur}')::int, 60);
     agora := now() at time zone 'America/Sao_Paulo';
 
-    -- crédito: falta dos últimos 60 dias que ainda não tem reposição
-    if not exists (select 1 from jsonb_array_elements(coalesce(d->'eventos', '[]')) x
-                    where x->>'aluno' = aid and x->>'tipo' = 'falta' and x->>'data' = ref and ref >= to_char(agora::date - 60, 'YYYY-MM-DD'))
-       or exists (select 1 from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao' and x->>'ref' = ref)
+    -- saldo de reposição = ajuste manual + faltas − reposições que contam − pedidos ainda na caixa (sem validade)
+    saldo := (case when jsonb_typeof(au.o_aluno->'repo_extra') = 'number' then round((au.o_aluno->>'repo_extra')::numeric)::int else 0 end)
+           + (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'falta')
+           - (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao' and coalesce(x->>'status', '') <> 'faltou_devolve' and coalesce(x->>'aprovacao', '') <> 'recusada')
+           - (select count(*) from portal_inbox where owner = au.o_owner and aluno_id = aid and tipo = 'reposicao');
+    if saldo <= 0 then return '{"erro":"credito"}'; end if;
+    -- a referência (qual aula faltada está sendo reposta): uma data já passada, que ainda não tenha reposição
+    if ref is null or ref !~ '^\d{4}-\d{2}-\d{2}$' or ref > to_char(agora::date, 'YYYY-MM-DD')
+       or exists (select 1 from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao' and x->>'ref' = ref and coalesce(x->>'aprovacao', '') <> 'recusada')
        or exists (select 1 from portal_inbox where owner = au.o_owner and aluno_id = aid and tipo = 'reposicao' and payload->>'ref' = ref) then
-      return '{"erro":"credito"}';
+      ref := '';
     end if;
 
     -- pelo menos 48h de antecedência, no máximo 15 dias à frente
@@ -170,7 +177,7 @@ begin
                             where x->>'aluno' = a->>'id' and x->>'data' = dt::text and x->>'hora' = s->>'hora' and x->>'tipo' in ('falta', 'cancelada'))
         union all
         select (x->>'hora')::time, coalesce((x->>'dur')::int, 60) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x
-         where x->>'data' = dt::text and x->>'tipo' in ('reposicao', 'extra')
+         where x->>'data' = dt::text and x->>'tipo' in ('reposicao', 'extra') and coalesce(x->>'aprovacao', '') <> 'recusada'
         union all
         select (i.payload->>'hora')::time, coalesce((i.payload->>'dur')::int, 60) from portal_inbox i
          where i.owner = au.o_owner and i.tipo = 'reposicao' and i.payload->>'data' = dt::text)
