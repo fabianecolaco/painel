@@ -1,6 +1,7 @@
 # Painel Teacher Fabi
 
 Painel completo da professora Fabiane Colaço: agenda, alunos, financeiro (com a imagem da mensalidade e QR Pix), atividades, correções, documentos da marca e ajustes.
+E a **página do aluno**: cada aluno entra pelo link dele + PIN de 4 números, faz as atividades, vê notas, aulas e mensalidade, personaliza a página e marca reposição (só com 48h de antecedência).
 
 - **Site:** HTML/CSS/JS puros, sem build. Hospedado no **GitHub Pages**.
 - **Dados:** **Supabase** (gratuito). Login com **e-mail e senha**, e só a conta da Fabi entra.
@@ -14,7 +15,10 @@ Painel completo da professora Fabiane Colaço: agenda, alunos, financeiro (com a
 | `config.js` | **Onde vão a URL e a chave do Supabase** |
 | `docs/` | Arquivos da marca (aba Documentos) |
 | `supabase/schema.sql` | Cria a tabela e as regras de segurança |
+| `supabase/portal.sql` | Funções seguras da página do aluno (PIN) |
+| `aluno/index.html` | A página do aluno |
 | `favicon.svg` | Ícone da aba do navegador |
+| `manifest.webmanifest`, `aluno/manifest.webmanifest`, `sw.js`, `icons/` | Deixam o painel e a página do aluno instaláveis como app |
 
 ---
 
@@ -74,3 +78,32 @@ Painel completo da professora Fabiane Colaço: agenda, alunos, financeiro (com a
 - **Dois aparelhos ao mesmo tempo:** se ela mexer no celular e no computador juntos, o painel carrega o que foi salvo por último e avisa. Vale fechar a aba de um antes de usar o outro.
 - **Atualizar o site:** qualquer arquivo novo no GitHub publica sozinho em 1 ou 2 minutos. Os dados não se perdem.
 - **Idioma e tema:** PT/EN e claro/escuro ficam no topo, e o painel lembra a escolha em cada aparelho.
+
+---
+
+## Página do aluno (atualização)
+
+1. **Supabase → SQL Editor → New query:** cole todo o `supabase/portal.sql` e clique em **Run**. Deve aparecer *Success*. (Pode rodar de novo sem problema.)
+2. **GitHub:** suba o `index.html` novo e a pasta **`aluno`** (com o `index.html` dela dentro).
+3. Pronto. O link de cada aluno fica `https://fabianecolaco.github.io/painel/aluno/#final-do-link` e o PIN aparece no perfil do aluno no painel.
+
+Como funciona:
+- O aluno digita o PIN uma vez; o aparelho dele lembra. 8 PINs errados em 15 min bloqueiam aquele link por 15 min.
+- O aluno **nunca** vê observação privada, telefones, anotações do diário ou dados de outros alunos.
+- O que o aluno faz (respostas, cor/foto da página, reposição) chega no painel sozinho (ao abrir, ao voltar para a aba e a cada minuto) e aparece no sino 🔔.
+- **Reposição:** só para falta dos últimos 60 dias que ainda não foi reposta, só em horário livre da disponibilidade da Fabi (a da semana, se ela editou), sem conflito com outro aluno, com pelo menos 48h de antecedência e até 2 semanas à frente. Se ela não puder, basta apagar a reposição na agenda.
+- Mudou o PIN no painel? O aluno precisa digitar o novo na próxima vez.
+
+---
+
+## Atualização · avisos, WhatsApp, conquistas, explicação e app
+
+1. **Supabase → SQL Editor:** rode de novo o `supabase/portal.sql` inteiro (agora ele também envia os avisos para o aluno).
+2. **GitHub:** suba tudo de novo: `index.html`, `manifest.webmanifest`, `sw.js`, as pastas `aluno` e `icons`.
+
+O que tem de novo:
+- **📣 Avisos:** em Alunos (para todos) ou no perfil (só para um aluno). Aparece no topo da página do aluno até a data escolhida.
+- **💬 WhatsApp:** no perfil, em Atividades → Em andamento, nos alunos em alerta e em cada mensalidade. Abre o WhatsApp com a mensagem pronta (atividades, link e PIN, próxima aula ou mensalidade).
+- **Conquistas:** 8 selos na página do aluno (aparecem também no perfil, para a Fabi).
+- **Explicação:** nas questões de marcar X e verdadeiro/falso, um campo "Explicação" que o aluno vê quando erra. No Word, escreva numa linha logo depois das opções: `Explicação: ...`.
+- **📲 Instalar app:** botão no topo do painel e da página do aluno. No iPhone: Safari → Compartilhar → Adicionar à Tela de Início. No Android e no computador (Chrome/Edge): o botão já instala.
