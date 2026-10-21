@@ -1,6 +1,6 @@
 // Deixa o painel e a página do aluno instaláveis como app. Sempre busca a versão nova na internet;
 // a cópia guardada só é usada se o aparelho estiver sem conexão.
-const CACHE = "fabi-v3";
+const CACHE = "fabi-v4";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./aluno/", "./favicon.svg", "./icons/icon-192.png"])).catch(() => {})); });
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", e => {

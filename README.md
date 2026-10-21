@@ -138,4 +138,7 @@ Como funciona:
 - **Aula em dupla (em laranja na agenda):** basta cadastrar os dois alunos no mesmo dia e horário. A agenda mostra "👥 dupla com…", e ao tocar na aula aparece **Abrir aula em dupla**: no topo da aula, um botão troca entre um aluno e o outro, cada um com as próprias atividades. Cobrança, faltas e reposições continuam separadas.
 - **Aba Reposições:** lista quem tem aula para repor. **+** lança uma aula para repor e pede a data da aula que ficou faltando (não precisa marcar a reposição na hora). **−** dá baixa numa reposição feita. Cada lançamento pode ser excluído, e dá para adicionar ou tirar aluno da lista. O saldo muda na agenda, no perfil e na página do aluno.
 - **Aula na agenda:** só duas opções quando não teve aula, **Marcar falta** ou **Aula cancelada**, e as duas viram reposição. O botão grande **📖 Diário de aula** abre a página da aula: última aula e o que foi falado, o registro de hoje e as atividades recentes. Também tem **Abrir aula** e **Abrir perfil**.
-
+- **Excluir aluno:** no perfil, **Editar dados → Excluir aluno** (toque duas vezes). Apaga o aluno e todo o histórico; para só pausar, desmarque "Aluno ativo".
+- **Dupla num cadastro só** (ex.: "Eliton - Paulo"): marque **👥 Aula em dupla** em Editar dados e a aula fica laranja na agenda.
+- **Diário de aula** também no perfil do aluno, ao lado de **Abrir aula**.
+- **Perfil do aluno** com visual novo: Abrir aula e Diário em destaque, dados organizados e o link + PIN numa caixa só.
