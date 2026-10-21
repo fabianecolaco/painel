@@ -84,7 +84,7 @@ begin
                            from jsonb_array_elements(coalesce(d->'alunos', '[]')) x where x->>'id' <> aid), '[]'),
       'eventos', coalesce((select jsonb_agg(z) from (
           select jsonb_build_object('aluno', 'o' || md5(e->>'aluno'), 'data', e->'data', 'hora', e->'hora', 'dur', e->'dur', 'tipo', e->'tipo') z
-            from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' <> aid and coalesce(e->>'aprovacao', '') <> 'recusada'
+            from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' <> aid and coalesce(e->>'hora', '') <> '' and coalesce(e->>'aprovacao', '') <> 'recusada'
           union all
           select jsonb_build_object('aluno', 'o' || md5(i.aluno_id), 'data', i.payload->'data', 'hora', i.payload->'hora', 'dur', i.payload->'dur', 'tipo', 'reposicao')
             from portal_inbox i where i.owner = au.o_owner and i.tipo = 'reposicao' and i.aluno_id <> aid) q), '[]')),
@@ -146,7 +146,7 @@ begin
 
     -- saldo de reposição = ajuste manual + faltas − reposições que contam − pedidos ainda na caixa (sem validade)
     saldo := (case when jsonb_typeof(au.o_aluno->'repo_extra') = 'number' then round((au.o_aluno->>'repo_extra')::numeric)::int else 0 end)
-           + (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'falta')
+           + (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and (x->>'tipo' = 'falta' or (x->>'tipo' = 'cancelada' and x->>'repor' = 'true')))
            - (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao' and coalesce(x->>'status', '') <> 'faltou_devolve' and coalesce(x->>'aprovacao', '') <> 'recusada')
            - (select count(*) from portal_inbox where owner = au.o_owner and aluno_id = aid and tipo = 'reposicao');
     if saldo <= 0 then return '{"erro":"credito"}'; end if;
@@ -182,7 +182,7 @@ begin
                             where x->>'aluno' = a->>'id' and x->>'data' = dt::text and x->>'hora' = s->>'hora' and x->>'tipo' in ('falta', 'cancelada'))
         union all
         select (x->>'hora')::time, coalesce((x->>'dur')::int, 60) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x
-         where x->>'data' = dt::text and x->>'tipo' in ('reposicao', 'extra') and coalesce(x->>'aprovacao', '') <> 'recusada'
+         where x->>'data' = dt::text and x->>'tipo' in ('reposicao', 'extra') and coalesce(x->>'hora', '') ~ '^\d{1,2}:\d{2}' and coalesce(x->>'aprovacao', '') <> 'recusada'
         union all
         select (i.payload->>'hora')::time, coalesce((i.payload->>'dur')::int, 60) from portal_inbox i
          where i.owner = au.o_owner and i.tipo = 'reposicao' and i.payload->>'data' = dt::text)
