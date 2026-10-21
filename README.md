@@ -1,7 +1,7 @@
 # Painel Teacher Fabi
 
-Painel completo da professora Fabiane Colaço: agenda, alunos, financeiro (com a imagem da mensalidade e QR Pix), atividades, correções, documentos da marca e ajustes.
-E a **página do aluno**: cada aluno entra pelo link dele + PIN de 4 números, faz as atividades, vê notas, aulas e mensalidade, personaliza a página e marca reposição (só com 48h de antecedência).
+Painel completo da professora Fabiane Colaço: agenda, alunos, financeiro (com a imagem da mensalidade e QR Pix), atividades, gramática liberada por aluno, correções, documentos da marca e ajustes.
+E a **página do aluno**: cada aluno entra pelo link dele + PIN de 4 números, faz as atividades, vê notas, aulas e mensalidade, personaliza a página e marca reposição (com a antecedência mínima definida em Ajustes, padrão 3 horas).
 
 - **Site:** HTML/CSS/JS puros, sem build. Hospedado no **GitHub Pages**.
 - **Dados:** **Supabase** (gratuito). Login com **e-mail e senha**, e só a conta da Fabi entra.
@@ -91,7 +91,7 @@ Como funciona:
 - O aluno digita o PIN uma vez; o aparelho dele lembra. 8 PINs errados em 15 min bloqueiam aquele link por 15 min.
 - O aluno **nunca** vê observação privada, telefones, anotações do diário ou dados de outros alunos.
 - O que o aluno faz (respostas, cor/foto da página, reposição) chega no painel sozinho (ao abrir, ao voltar para a aba e a cada minuto) e aparece no sino 🔔.
-- **Reposição:** só para falta dos últimos 60 dias que ainda não foi reposta, só em horário livre da disponibilidade da Fabi (a da semana, se ela editou), sem conflito com outro aluno, com pelo menos 48h de antecedência e até 2 semanas à frente. Se ela não puder, basta apagar a reposição na agenda.
+- **Reposição:** só para falta dos últimos 60 dias que ainda não foi reposta, só em horário livre da disponibilidade da Fabi (a da semana, se ela editou), sem conflito com outro aluno, com a antecedência mínima de Ajustes (padrão 3 horas) e até 2 semanas à frente. Se ela não puder, basta apagar a reposição na agenda.
 - Mudou o PIN no painel? O aluno precisa digitar o novo na próxima vez.
 
 ---
@@ -118,9 +118,22 @@ O que tem de novo:
 Como funciona:
 - **Saldo** = ajuste manual + faltas − reposições. Não vence.
 - **Ajuste do saldo** (no perfil do aluno, em Reposições): para lançar aulas antigas de uma vez (ex.: 8). Número negativo tira.
-- **Aluno:** pede quantas reposições quiser enquanto tiver saldo, sempre em horário livre e com 48h de antecedência, e diz qual aula faltada cada uma repõe (uma falta da lista, "aula antiga" ou outra data).
+- **Aluno:** pede quantas reposições quiser enquanto tiver saldo, sempre em horário livre e com a antecedência mínima de Ajustes (padrão 3 horas), e diz qual aula faltada cada uma repõe (uma falta da lista, "aula antiga" ou outra data).
 - **Fabi aceita:** o pedido reserva o horário e aparece no topo da Agenda (aba "Agenda ⏳") e no perfil do aluno. ✓ Aceitar confirma; ✕ Recusar libera o horário e devolve o crédito. Reposições que a própria Fabi marca (lote, avulsa ou no modo aula) já entram confirmadas.
 - **Trocar a falta de referência:** toque na reposição na Agenda e escolha "Qual aula faltada esta reposição repõe".
 - **Fabi em lote:** "Marcar reposições em lote" escolhe dia e horário fixo e agenda uma por semana, pulando conflitos.
 - **Falta na reposição:** na Agenda, toque na reposição e escolha "Faltou · devolver crédito" ou "Faltou · perder crédito".
 - **Como saber o que foi:** na Agenda aparece "reposição de 05/10"; no calendário, ↺ antes do horário; no perfil, o histórico mostra cada falta e cada reposição, quem marcou e se foi feita.
+
+## Novidades (outubro/2026)
+
+> **Depois de subir os arquivos, rode o `supabase/portal.sql` de novo** (SQL Editor → New query → cole tudo → Run). Ele libera a gramática na página do aluno e a reposição com 3 horas de antecedência. Pode rodar quantas vezes quiser; não apaga dados.
+
+- **Salvamento mais seguro:** o painel envia uma coisa por vez, junta com o que foi salvo em outro aparelho em vez de descartar, tenta de novo sozinho quando a internet cai e guarda uma cópia no aparelho até subir. Se o app fechar antes de salvar, a cópia sobe na próxima vez que abrir.
+- **Atividades · Completar:** cole uma frase ou um texto inteiro e toque nas palavras que o aluno vai preencher (ficam verdes; toque de novo para desfazer). Quando o aluno envia, a palavra certa aparece em verde e a errada riscada em vermelho, com a correta ao lado. A letra da música usa o mesmo jeito.
+- **Caixas de texto maiores**, que crescem sozinhas enquanto você escreve. No celular o editor ocupa a tela toda. Se faltar algo para salvar, a mensagem aparece embaixo do botão e a questão fica destacada.
+- **Gramática:** aba nova. Crie tópicos (ex.: Verb to be) com explicação, tabela e exemplos e libere por aluno, para sempre (aba Gramática → Liberar, ou no perfil do aluno). O aluno vê em "Minha gramática" e escolhe o tópico.
+- **Reposição:** antecedência mínima de 3 horas, ajustável em **Ajustes → Disponibilidade padrão**.
+- **Mensalidade na página do aluno:** o valor fica escondido (R$ ••••); só aparece pendente ou pago. O 👁 mostra o valor.
+- **Aula em dupla:** basta cadastrar os dois alunos no mesmo dia e horário. A agenda mostra "👥 dupla com…", e ao tocar na aula aparece **Abrir aula em dupla**: no topo da aula, um botão troca entre um aluno e o outro, cada um com as próprias atividades. Cobrança, faltas e reposições continuam separadas.
+

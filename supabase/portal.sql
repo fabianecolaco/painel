@@ -6,9 +6,10 @@
 --  • O aluno nunca lê a tabela "painel". Ele só chama duas funções,
 --    portal_get e portal_post, que exigem o link (token) + PIN de 4 números.
 --  • portal_get devolve só o que é dele: atividades, notas, aulas,
---    mensalidades e assuntos marcados como visíveis. Nada de observações
+--    mensalidades, assuntos marcados como visíveis e a gramática liberada para ele. Nada de observações
 --    privadas, telefones, anotações do diário ou dados de outros alunos.
---  • Reposição: o aluno pede quantas quiser enquanto tiver saldo (ajuste + faltas − reposições);
+--  • Reposição: o aluno pede quantas quiser enquanto tiver saldo (ajuste + faltas − reposições),
+--    com a antecedência mínima de Ajustes (padrão 3 horas);
 --    o pedido reserva o horário e a Fabi aceita ou recusa no painel (recusada devolve o crédito).
 --  • O que o aluno faz (respostas, tema da página, reposição) vai para a
 --    caixa "portal_inbox". O painel da Fabi busca essa caixa, aplica e apaga.
@@ -90,7 +91,10 @@ begin
     'ajustes', jsonb_build_object(
       'pix_chave', d#>'{ajustes,pix_chave}', 'pix_nome', d#>'{ajustes,pix_nome}', 'pix_cidade', d#>'{ajustes,pix_cidade}',
       'telefone', d#>'{ajustes,telefone}', 'obrigado', d#>'{ajustes,obrigado}', 'passo', d#>'{ajustes,passo}',
-      'disponibilidade', d#>'{ajustes,disponibilidade}', 'semanas', d#>'{ajustes,semanas}', 'antecedencia_h', 48),
+      'disponibilidade', d#>'{ajustes,disponibilidade}', 'semanas', d#>'{ajustes,semanas}',
+      'antecedencia_h', case when jsonb_typeof(d#>'{ajustes,antecedencia_h}') = 'number' then greatest(0, least(168, (d#>>'{ajustes,antecedencia_h}')::numeric))::int else 3 end),
+    'gramatica', coalesce((select jsonb_agg(g - 'liberado') from jsonb_array_elements(coalesce(d->'gramatica', '[]')) g
+                            where coalesce(g->'liberado', '[]') ? aid), '[]'),
     'avisos', coalesce((select jsonb_agg(jsonb_build_object('id', v->'id', 'texto', v->'texto', 'criado', v->'criado'))
                           from jsonb_array_elements(coalesce(d->'avisos', '[]')) v
                          where (v->>'alvo' = 'todos' or v->>'alvo' = aid)
@@ -103,7 +107,7 @@ end $$;
 -- ---------------------------------------------------------------- enviar
 create or replace function public.portal_post(p_token text, p_pin text, p_tipo text, p_payload jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare au record; aid text; d jsonb; ref text; saldo int; dt date; hr time; du int; st timestamp; agora timestamp; dow int; wk text; av jsonb; foto text;
+declare au record; aid text; d jsonb; ref text; saldo int; dt date; hr time; du int; st timestamp; agora timestamp; dow int; wk text; av jsonb; foto text; ante int;
 begin
   select * into au from _portal_auth(p_token, p_pin);
   if au.o_erro is not null then return jsonb_build_object('erro', au.o_erro); end if;
@@ -153,9 +157,10 @@ begin
       ref := '';
     end if;
 
-    -- pelo menos 48h de antecedência, no máximo 15 dias à frente
+    -- antecedência mínima de Ajustes (padrão 3 horas), no máximo 15 dias à frente
+    ante := case when jsonb_typeof(d#>'{ajustes,antecedencia_h}') = 'number' then greatest(0, least(168, (d#>>'{ajustes,antecedencia_h}')::numeric))::int else 3 end;
     st := dt + hr;
-    if st < agora + interval '48 hours' or st > agora + interval '15 days' then return '{"erro":"horario"}'; end if;
+    if st < agora + make_interval(hours => ante) or st > agora + interval '15 days' then return '{"erro":"horario"}'; end if;
 
     -- dentro da disponibilidade (a da semana, se ela editou só aquela semana; senão a padrão)
     dow := extract(dow from dt)::int;
