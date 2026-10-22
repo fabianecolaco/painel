@@ -17,6 +17,7 @@ E a **página do aluno**: cada aluno entra pelo link dele + PIN de 4 números, f
 | `supabase/schema.sql` | Cria a tabela e as regras de segurança |
 | `supabase/portal.sql` | Funções seguras da página do aluno (PIN) |
 | `aluno/index.html` | A página do aluno |
+| `modelos/` | Modelos de Excel e Word para importar atividades |
 | `favicon.svg` | Ícone da aba do navegador |
 | `manifest.webmanifest`, `aluno/manifest.webmanifest`, `sw.js`, `icons/` | Deixam o painel e a página do aluno instaláveis como app |
 
@@ -142,3 +143,18 @@ Como funciona:
 - **Dupla num cadastro só** (ex.: "Eliton - Paulo"): marque **👥 Aula em dupla** em Editar dados e a aula fica laranja na agenda.
 - **Diário de aula** também no perfil do aluno, ao lado de **Abrir aula**.
 - **Perfil do aluno** com visual novo: Abrir aula e Diário em destaque, dados organizados e o link + PIN numa caixa só.
+
+## Novidades (22/out/2026)
+
+> Rode o `supabase/portal.sql` de novo depois de subir (reposição de meia aula e "aula perdida" na página do aluno).
+
+- **Importar do Word:** entende o formato de texto com caixa de opções. A tabela numerada vira a caixa (o aluno escolhe numa lista em cada lacuna), o diálogo inteiro vira **uma** questão com todas as lacunas "(1) ____", o título do Word vira o título da atividade e o texto de situação/instruções fica num bloco só. Se o Word tiver um gabarito no fim ("Answer key", "Gabarito"), as respostas já entram; senão, ela escolhe a resposta certa de cada lacuna numa lista. Também dá para criar a caixa de opções à mão em qualquer "Completar".
+- **Aulas cobradas por semana:** preenche sozinho com a quantidade de horários cadastrados (2 horários = 2). Se ela digitar outro número, o painel respeita.
+- **Reposição de 30 min ou 1 h:** ao dar baixa (−) ela escolhe o tempo. 30 min numa aula de 1 h desconta 0,5; o saldo aparece como 1,5 e não deixa passar do saldo. Se o aluno tiver só meia aula de saldo, a página dele marca uma reposição de 30 min.
+- **Não teve aula?** Duas opções: **🔁 Disponível para reposição** (entra no saldo) ou **✕ Aula perdida (sem reposição)**. Dá para trocar uma pela outra depois, tocando na aula.
+- **Importar ficou mais fácil** (Atividades → 📥 Importar): arraste os arquivos ou escolha vários de uma vez (Word, Excel ou CSV).
+  - **Modelo Excel** (`modelos/Modelo_Atividades.xlsx`): uma linha por questão, com o Tipo numa lista. **Cada aba vira uma atividade**, então dá para importar várias de uma vez e salvar todas na biblioteca numa pasta.
+  - **Modelo Word** (`modelos/Modelo_Atividade.docx`): mostra o jeito que o painel entende. Dica: escrever a resposta entre colchetes, ex.: She [goes] to work.
+  - **Copiar e colar do Word** mantém as tabelas e o negrito. Pontinhos (......) também viram lacuna, e uma caixa de palavras sem números também vira caixa de opções.
+  - Atividade que ainda precisa de ajuste aparece com **⚠ Revisar** na biblioteca.
+

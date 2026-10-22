@@ -107,7 +107,7 @@ end $$;
 -- ---------------------------------------------------------------- enviar
 create or replace function public.portal_post(p_token text, p_pin text, p_tipo text, p_payload jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare au record; aid text; d jsonb; ref text; saldo int; dt date; hr time; du int; st timestamp; agora timestamp; dow int; wk text; av jsonb; foto text; ante int;
+declare au record; aid text; d jsonb; ref text; saldo numeric; dur_aula int; dt date; hr time; du int; st timestamp; agora timestamp; dow int; wk text; av jsonb; foto text; ante int;
 begin
   select * into au from _portal_auth(p_token, p_pin);
   if au.o_erro is not null then return jsonb_build_object('erro', au.o_erro); end if;
@@ -145,11 +145,18 @@ begin
     agora := now() at time zone 'America/Sao_Paulo';
 
     -- saldo de reposição = ajuste manual + faltas − reposições que contam − pedidos ainda na caixa (sem validade)
-    saldo := (case when jsonb_typeof(au.o_aluno->'repo_extra') = 'number' then round((au.o_aluno->>'repo_extra')::numeric)::int else 0 end)
-           + (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and (x->>'tipo' = 'falta' or (x->>'tipo' = 'cancelada' and x->>'repor' = 'true')))
-           - (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao' and coalesce(x->>'status', '') <> 'faltou_devolve' and coalesce(x->>'aprovacao', '') <> 'recusada')
-           - (select count(*) from portal_inbox where owner = au.o_owner and aluno_id = aid and tipo = 'reposicao');
+    -- uma reposição de 30 min numa aula de 1 h desconta 0,5; "aula perdida" (sem_repor) não gera crédito
+    dur_aula := greatest(1, du);
+    saldo := (case when jsonb_typeof(au.o_aluno->'repo_extra') = 'number' then round((au.o_aluno->>'repo_extra')::numeric, 2) else 0 end)
+           + (select count(*) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid
+                and ((x->>'tipo' = 'falta' and coalesce(x->>'sem_repor', 'false') <> 'true') or (x->>'tipo' = 'cancelada' and x->>'repor' = 'true')))
+           - coalesce((select sum(case when coalesce(x->>'dur', '') ~ '^\d+$' then round((x->>'dur')::numeric / dur_aula, 2) else 1 end)
+                from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao'
+                and coalesce(x->>'status', '') <> 'faltou_devolve' and coalesce(x->>'aprovacao', '') <> 'recusada'), 0)
+           - coalesce((select sum(case when coalesce(payload->>'dur', '') ~ '^\d+$' then round((payload->>'dur')::numeric / dur_aula, 2) else 1 end)
+                from portal_inbox where owner = au.o_owner and aluno_id = aid and tipo = 'reposicao'), 0);
     if saldo <= 0 then return '{"erro":"credito"}'; end if;
+    if saldo < 1 then du := greatest(15, round(saldo * dur_aula)::int); end if; -- sobrou meia aula: a reposição é mais curta
     -- a referência (qual aula faltada está sendo reposta): uma data já passada, que ainda não tenha reposição
     if ref is null or ref !~ '^\d{4}-\d{2}-\d{2}$' or ref > to_char(agora::date, 'YYYY-MM-DD')
        or exists (select 1 from jsonb_array_elements(coalesce(d->'eventos', '[]')) x where x->>'aluno' = aid and x->>'tipo' = 'reposicao' and x->>'ref' = ref and coalesce(x->>'aprovacao', '') <> 'recusada')
