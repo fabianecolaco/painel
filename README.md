@@ -169,4 +169,6 @@ Como funciona:
 - **Marcar tocando na agenda:** toque num horário vazio da grade, escolha o aluno e marque **reposição** (½ aula ou 1 aula) ou **aula extra**. Aparece na agenda e no perfil do aluno.
 - **Encaixar reposições** (substitui o "em lote"): na aba Reposições, no perfil ou no topo da agenda, escolha o aluno. A agenda mostra o saldo dele e cada toque num horário marca uma reposição de ½ aula ou 1 aula; tocar de novo nela tira. O saldo não fica negativo.
 - **Editar reposição:** tocando nela, dá para mudar dia, horário e duração direto no topo. As opções menos usadas ficam em "Mais opções".
+- **Laranja só para dupla de verdade:** duas aulas fixas no mesmo horário, ou uma reposição/aula extra em que ela escolheu "👥 Dupla de alunos". Se uma reposição caiu em cima de outra aula sem ser dupla, ela fica com contorno vermelho tracejado e "⚠ junto com…". Dá para tirar o laranja em "Não é dupla".
+- **Excluir reposição ou aula extra:** botão vermelho "🗑 Excluir" na tela da aula (antes ficava escondido em "Mais opções").
 
