@@ -136,11 +136,11 @@ Como funciona:
 - **Gramática:** aba nova, numa página centralizada e livre: títulos, tamanho da letra, espaço entre linhas, alinhar (esquerda, centro, direita, justificado), cores da letra e marca-texto (já com as cores da agenda), listas e tabelas. Não é dividida por nível. Libere por aluno, para sempre (Gramática → Liberar, ou no perfil do aluno). O aluno vê em "Minha gramática" e escolhe o tópico.
 - **Reposição:** antecedência mínima de 3 horas, ajustável em **Ajustes → Disponibilidade padrão**.
 - **Mensalidade na página do aluno:** o valor fica escondido (R$ ••••); só aparece pendente ou pago. O 👁 mostra o valor.
-- **Aula em dupla (em laranja na agenda):** basta cadastrar os dois alunos no mesmo dia e horário. A agenda mostra "👥 dupla com…", e ao tocar na aula aparece **Abrir aula em dupla**: no topo da aula, um botão troca entre um aluno e o outro, cada um com as próprias atividades. Cobrança, faltas e reposições continuam separadas.
+- **Aula em dupla (azul com borda pontilhada na agenda):** basta cadastrar os dois alunos no mesmo dia e horário. A agenda mostra "👥 dupla com…", e ao tocar na aula aparece **Abrir aula em dupla**: no topo da aula, um botão troca entre um aluno e o outro, cada um com as próprias atividades. Cobrança, faltas e reposições continuam separadas.
 - **Aba Reposições:** lista quem tem aula para repor. **+** lança uma aula para repor e pede a data da aula que ficou faltando (não precisa marcar a reposição na hora). **−** dá baixa numa reposição feita. Cada lançamento pode ser excluído, e dá para adicionar ou tirar aluno da lista. O saldo muda na agenda, no perfil e na página do aluno.
 - **Aula na agenda:** só duas opções quando não teve aula, **Marcar falta** ou **Aula cancelada**, e as duas viram reposição. O botão grande **📖 Diário de aula** abre a página da aula: última aula e o que foi falado, o registro de hoje e as atividades recentes. Também tem **Abrir aula** e **Abrir perfil**.
 - **Excluir aluno:** no perfil, **Editar dados → Excluir aluno** (toque duas vezes). Apaga o aluno e todo o histórico; para só pausar, desmarque "Aluno ativo".
-- **Dupla num cadastro só** (ex.: "Eliton - Paulo"): marque **👥 Aula em dupla** em Editar dados e a aula fica laranja na agenda.
+- **Dupla num cadastro só** (ex.: "Eliton - Paulo"): marque **👥 Aula em dupla** em Editar dados e a aula fica azul com borda pontilhada na agenda.
 - **Diário de aula** também no perfil do aluno, ao lado de **Abrir aula**.
 - **Perfil do aluno** com visual novo: Abrir aula e Diário em destaque, dados organizados e o link + PIN numa caixa só.
 
@@ -169,6 +169,6 @@ Como funciona:
 - **Marcar tocando na agenda:** toque num horário vazio da grade, escolha o aluno e marque **reposição** (½ aula ou 1 aula) ou **aula extra**. Aparece na agenda e no perfil do aluno.
 - **Encaixar reposições** (substitui o "em lote"): na aba Reposições, no perfil ou no topo da agenda, escolha o aluno. A agenda mostra o saldo dele e cada toque num horário marca uma reposição de ½ aula ou 1 aula; tocar de novo nela tira. O saldo não fica negativo.
 - **Editar reposição:** tocando nela, dá para mudar dia, horário e duração direto no topo. As opções menos usadas ficam em "Mais opções".
-- **Laranja só para dupla de verdade:** duas aulas fixas no mesmo horário, ou uma reposição/aula extra em que ela escolheu "👥 Dupla de alunos". Se uma reposição caiu em cima de outra aula sem ser dupla, ela fica com contorno vermelho tracejado e "⚠ junto com…". Dá para tirar o laranja em "Não é dupla".
+- **Dupla (azul pontilhado) só para dupla de verdade:** duas aulas fixas no mesmo horário, ou uma reposição/aula extra em que ela escolheu "👥 Dupla de alunos". Se uma reposição caiu em cima de outra aula sem ser dupla, ela fica com contorno vermelho tracejado e "⚠ junto com…". Dá para tirar o pontilhado em "Não é dupla".
 - **Excluir reposição ou aula extra:** botão vermelho "🗑 Excluir" na tela da aula (antes ficava escondido em "Mais opções").
 
