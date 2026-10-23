@@ -166,4 +166,7 @@ Como funciona:
 - **Aula perdida** não entra no saldo de reposição (no painel e na página do aluno).
 - **Importar do Word** reconhece os títulos do Word em português e o "Teacher's Answer Key" no formato "01. 5 — A booking".
 - Aula com duração vazia ou 0 passa a valer 60 min.
+- **Marcar tocando na agenda:** toque num horário vazio da grade, escolha o aluno e marque **reposição** (½ aula ou 1 aula) ou **aula extra**. Aparece na agenda e no perfil do aluno.
+- **Encaixar reposições** (substitui o "em lote"): na aba Reposições, no perfil ou no topo da agenda, escolha o aluno. A agenda mostra o saldo dele e cada toque num horário marca uma reposição de ½ aula ou 1 aula; tocar de novo nela tira. O saldo não fica negativo.
+- **Editar reposição:** tocando nela, dá para mudar dia, horário e duração direto no topo. As opções menos usadas ficam em "Mais opções".
 
