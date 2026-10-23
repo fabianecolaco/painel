@@ -144,7 +144,7 @@ fieldset.group legend{font-family:var(--serif);font-size:15px;padding:0 6px;colo
 .slot{border-radius:9px;padding:6px 8px;font-size:12px;text-align:left;border:1px solid transparent;width:100%;color:var(--ink)}
 .slot b{font-weight:600;font-variant-numeric:tabular-nums}
 .slot.normal{background:var(--soft)} .slot.reposicao{background:var(--info-bg)} .slot.pend{background:var(--warn-bg);outline:2px dashed var(--warn);outline-offset:-2px} .slot.extra{background:var(--gold-soft)}
-.slot.isduo{background:var(--duo-bg);box-shadow:none;outline:2px dotted var(--duo);outline-offset:-2px}
+.slot.isduo{box-shadow:none;outline:2px dotted var(--duo);outline-offset:-2px} /* dupla: mantém a cor da aula (rosa) ou da reposição (azul), só ganha a borda pontilhada */
 .slot.falta{background:var(--bad-bg);text-decoration:line-through;color:var(--bad)} .slot.cancelada{background:var(--cancel-bg);color:var(--cancel-ink);text-decoration:line-through}
 .free{font-size:11px;color:var(--ok);border:1px dashed var(--free-line);border-radius:8px;padding:4px 7px;background:var(--free-bg)}
 @media (max-width:720px){.week{grid-template-columns:minmax(0,1fr)}}
@@ -766,7 +766,7 @@ function vAgenda() {
         <button class="btn sm" id="wAvail">Editar disponibilidade desta semana</button>
         <span class="seg" role="group" aria-label="Visualização"><button type="button" data-agv="grade" aria-pressed="${UI.agView !== "lista"}">▦ Grade</button><button type="button" data-agv="lista" aria-pressed="${UI.agView === "lista"}">☰ Lista</button></span>
         ${UI.agView === "lista" ? `<button class="btn sm ${UI.showFree ? "on" : ""}" id="wFree" aria-pressed="${!!UI.showFree}">Mostrar horários livres</button>` : ""}</div></div>
-    <div class="legend"><span><i style="background:var(--soft)"></i>Aula</span><span><i style="background:var(--duo-bg);outline:1.5px dotted var(--duo);outline-offset:-1.5px"></i>Aula em dupla</span><span><i style="background:var(--info-bg)"></i>Reposição</span><span><i style="background:var(--warn-bg);outline:1px dashed var(--warn)"></i>Reposição a aceitar</span><span><i style="background:var(--gold-soft)"></i>Extra</span><span><i style="background:var(--bad-bg)"></i>Falta</span><span><i style="background:var(--cancel-bg)"></i>Cancelada</span></div>
+    <div class="legend"><span><i style="background:var(--soft)"></i>Aula</span><span><i style="background:var(--soft);outline:1.5px dotted var(--duo);outline-offset:-1.5px"></i>Aula em dupla</span><span><i style="background:var(--info-bg)"></i>Reposição</span><span><i style="background:var(--warn-bg);outline:1px dashed var(--warn)"></i>Reposição a aceitar</span><span><i style="background:var(--gold-soft)"></i>Extra</span><span><i style="background:var(--bad-bg)"></i>Falta</span><span><i style="background:var(--cancel-bg)"></i>Cancelada</span></div>
     ${UI.agView !== "lista" ? (UI.encaixe ? encaixeBarHtml() : confirmBoxHtml() + encaixeStartHtml()) + weekGridHtml(days, occ) + `<p class="hint">Toque num <b>horário vazio</b> para marcar uma reposição ou aula extra. Toque numa aula para abrir, <b>arraste</b> para mudar o dia ou o horário e <b>puxe a borda de baixo</b> para 30 ou 60 min. Verde = seu horário livre.</p>` : `<div class="week">${days.map(d => { const ds = ymd(d), list = occ.filter(o => o.data === ds), free = UI.showFree ? freeRanges(ds) : [];
       return `<section class="wcol ${ds === td ? "today" : ""}" aria-label="${WD_FULL[d.getDay()]} ${fmtDate(ds)}">
         <div><h4>${WD_FULL[d.getDay()]}</h4><div class="date">${fmtDate(ds)}</div></div>
