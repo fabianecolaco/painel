@@ -158,3 +158,12 @@ Como funciona:
   - **Copiar e colar do Word** mantém as tabelas e o negrito. Pontinhos (......) também viram lacuna, e uma caixa de palavras sem números também vira caixa de opções.
   - Atividade que ainda precisa de ajuste aparece com **⚠ Revisar** na biblioteca.
 
+## Novidades (22/out/2026, noite)
+
+- **Agenda em grade:** cada aula é um bloco no horário. **Arraste** para mudar o dia ou o horário e **puxe a borda de baixo** para 30 ou 60 min. Ao soltar, ela escolhe **só nesta semana** (a aula fica "remarcada", com botão para desfazer) ou **toda semana** (muda o horário fixo). O horário livre aparece sempre em verde. O botão ☰ Lista volta para o jeito antigo.
+- **Horário ocupado:** ao marcar, arrastar ou cadastrar em cima de outro aluno, aparece o aviso com **👥 Dupla de alunos** ou **← Voltar e escolher outro horário**.
+- **Confirmar reposição:** em cada reposição, **✓ Foi feita**, **↻ Foi remarcada** (novo dia e horário) ou faltou. As que já passaram e ainda não foram confirmadas aparecem numa caixa azul no topo da agenda.
+- **Aula perdida** não entra no saldo de reposição (no painel e na página do aluno).
+- **Importar do Word** reconhece os títulos do Word em português e o "Teacher's Answer Key" no formato "01. 5 — A booking".
+- Aula com duração vazia ou 0 passa a valer 60 min.
+
