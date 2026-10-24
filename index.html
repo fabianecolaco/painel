@@ -261,6 +261,9 @@ textarea.grow.big{min-height:120px}
 @media (max-width:700px){.imgscroll.zoom .imgwrap{width:980px}.imgscroll{border:1px solid var(--line)}}
 .imgtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .imgpanel{background:var(--soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.audslot{background:var(--soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.audslot audio,.audplay audio{width:100%;height:40px}
+.audplay{display:flex;flex-direction:column;gap:4px;background:var(--info-bg);border-radius:10px;padding:8px 12px;font-size:13.5px;font-weight:500}
 /* painel lateral */
 .sheet{position:fixed;inset:0;background:var(--overlay);display:flex;justify-content:flex-end;z-index:40}
 .sheet-inner{width:min(560px,100%);height:100%;overflow-y:auto;background:var(--bg);border-left:1px solid var(--line);
@@ -1515,6 +1518,7 @@ function imgEditorHtml(i, k) {
         <label>🔢 Letras ou números <span class="hint">(ex.: a-g ou 1-7)</span><input data-imglet="${k}" value="${esc(i.letras || "a-g")}"></label></div>
       <div class="stack tight"><span class="hint"><b>1.</b> Escolha o tipo · <b>2.</b> toque na imagem no lugar da lacuna · <b>3.</b> escolha a resposta certa embaixo. Arraste a lacuna para ajustar.</span>
         <div class="seg" role="group" aria-label="Tipo de lacuna">${IMG_TIPOS.map(([t, l]) => `<button type="button" data-imt="${t}" data-k="${k}" aria-pressed="${mode === t}">${l}</button>`).join("")}</div></div>
+      <div class="row">${audioSlotHtml(`img${k}a`, "🔊 Narração", i.audio, "o aluno ouve enquanto faz")}${audioSlotHtml(`img${k}r`, "🔊 Narração com respostas", i.audioResp, "aparece só depois que o aluno envia")}</div>
       <div class="imgwrap edit" data-imgk="${k}"><img src="${esc(i.src)}" alt="Folha da atividade" draggable="false">
         ${(i.campos || []).map((f, j) => `<div class="imgf ed ${f.tipo}${f.resp ? "" : " nores"}${sel === j ? " sel" : ""}" data-cj="${j}" style="${campoStyle(f)}"><span class="cn">${j + 1}</span><span class="cv">${esc(f.resp ? f.resp.split("|")[0] : "?")}</span></div>`).join("")}</div>
       <div data-imgpanel="${k}">${sel != null && i.campos[sel] ? imgPanelHtml(i, k, sel) : `<p class="hint" style="margin:0">${(i.campos || []).length ? `${plural(i.campos.length, "lacuna", "lacunas")}. Toque numa lacuna para mudar a resposta.` : "Nenhuma lacuna ainda."}</p>`}</div>` : ""}`;
@@ -1537,6 +1541,7 @@ function bindImgItem(k, st, summary, redrawAll) {
     try { const r = await uploadImg(f); Object.assign(i, r); i.campos = i.campos || []; redraw(); }
     catch (err) { s.textContent = PROD ? "Não consegui guardar a imagem. Confira se o supabase/imagens.sql já foi rodado e tente de novo." : "Não consegui abrir essa imagem."; translate(s); } });
   if (!box) return;
+  [["a", "audio"], ["r", "audioResp"]].forEach(([s2, key]) => { const el = $(`[data-aud="img${k}${s2}"]`); if (el) bindAudioSlot(el, url => { if (url) i[key] = url; else delete i[key]; redraw(); }); });
   const bk = $(`[data-imgbank="${k}"]`); bk.addEventListener("input", () => { i.banco = imgBanco(bk.value); summary(); });
   bk.addEventListener("change", redraw);
   const lt = $(`[data-imglet="${k}"]`); lt.addEventListener("change", () => { i.letras = lt.value.trim() || "a-g"; redraw(); });
@@ -1544,9 +1549,13 @@ function bindImgItem(k, st, summary, redrawAll) {
   const pct = ev => { const r = box.getBoundingClientRect(); return [Math.max(0, Math.min(100, (ev.clientX - r.left) / r.width * 100)), Math.max(0, Math.min(100, (ev.clientY - r.top) / r.height * 100))]; };
   box.addEventListener("click", ev => { // toque num lugar vazio cria a lacuna
     if (ev.target.closest(".imgf") || box._dragged) { box._dragged = false; return; }
-    const [x, y] = pct(ev), t = UI.imgMode || "caixa", w = IMG_W[t];
-    i.campos = i.campos || []; i.campos.push({ x: Math.round(Math.max(0, Math.min(100 - w, x - w / 2)) * 100) / 100, y: Math.round(y * 100) / 100, w, tipo: t, resp: "" });
-    UI.imgSel[k] = i.campos.length - 1; summary(); redraw(); });
+    const [x, y] = pct(ev), t = UI.imgMode || "caixa", r2d = n => Math.round(n * 100) / 100, rect = box.getBoundingClientRect();
+    let f = { x: r2d(Math.max(0, Math.min(100 - IMG_W[t], x - IMG_W[t] / 2))), y: r2d(y), w: IMG_W[t], tipo: t, resp: "" };
+    const add = () => { i.campos = i.campos || []; i.campos.push(f); UI.imgSel[k] = i.campos.length - 1; summary(); redraw(); };
+    imgPixels(i.src).then(P => { const sn = snapBlank(P, x, y, t);
+      if (sn) { const fpx = Math.min(14, Math.max(8, rect.width * .012)), hPct = 1.25 * fpx / rect.height * 100; // altura do campo em %
+        f.x = r2d(sn.x); f.w = r2d(Math.max(2.5, sn.w)); f.y = r2d(sn.box ? sn.yMid : sn.yLine - hPct / 2 + .15); }
+      add(); }); });
   $$(".imgf", box).forEach(fe => fe.addEventListener("pointerdown", ev => { // arrastar a lacuna para ajustar
     if (ev.button) return; ev.preventDefault(); ev.stopPropagation();
     const j = +fe.dataset.cj, f = i.campos[j], [x0, y0] = pct(ev), fx = f.x, fy = f.y; let moved = false;
@@ -1568,7 +1577,9 @@ function bindImgItem(k, st, summary, redrawAll) {
 // aluno: responde em cima da imagem; depois de enviar, a correção aparece na própria imagem
 function imgStudentHtml(i, k, done, R, det) {
   const vals = (R || {})[k] || [];
-  return `<div class="imgtools"><button type="button" class="btn sm" data-zoom="${k}" aria-pressed="false">🔍 Ampliar</button><span class="hint">Toque nos campos da imagem para responder.${"" /* no celular dá para arrastar a imagem para os lados */}</span></div>
+  const aud = (u, l) => u ? `<div class="audplay"><span>${l}</span><audio controls preload="none" src="${esc(u)}"></audio></div>` : "";
+  return `${aud(i.audio, "🔊 Narração")}${done ? aud(i.audioResp, "🔊 Ouvir com as respostas") : ""}
+    <div class="imgtools"><button type="button" class="btn sm" data-zoom="${k}" aria-pressed="false">🔍 Ampliar</button><span class="hint">Toque nos campos da imagem para responder.</span></div>
     <div class="imgscroll" data-zs="${k}"><div class="imgwrap"><img src="${esc(i.src)}" alt="Atividade" draggable="false">
       ${(i.campos || []).map((f, j) => { const v = vals[j] || "";
         if (done) { const ok = det ? det[j] : imgOk(f, v); return `<div class="imgf res ${ok ? "ok" : "bad"}" style="${campoStyle(f)}" title="${ok ? "" : esc("Certo: " + String(f.resp || "").split("|")[0])}"><span class="cv">${esc(v || "—")}</span>${ok ? " ✓" : `<span class="rn">${j + 1}</span>`}</div>`; }
@@ -1583,6 +1594,73 @@ function bindZoom(root = document) { $$("[data-zoom]", root).forEach(b => {
     b.addEventListener("click", () => { const z = $(`[data-zs="${b.dataset.zoom}"]`); const on = !z.classList.contains("zoom"); z.classList.toggle("zoom", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "🔍 Diminuir" : "🔍 Ampliar"; translate(b); }); }); }
 function imgPreviewHtml(i) { // prévia da Fabi: mostra as respostas certas
   return `<div class="imgscroll"><div class="imgwrap"><img src="${esc(i.src)}" alt="">${(i.campos || []).map(f => `<div class="imgf res ${f.resp ? "ok" : "bad"}" style="${campoStyle(f)}"><span class="cv">${esc(f.resp ? f.resp.split("|")[0] : "?")}</span></div>`).join("")}</div></div>`;
+}
+
+// ---------- encaixe automático: lê a imagem e acha o risquinho (ou o quadradinho) perto do toque
+const _imgPix = {};
+async function imgPixels(src) {
+  if (_imgPix[src]) return _imgPix[src];
+  return (_imgPix[src] = new Promise(ok => { const im = new Image(); im.crossOrigin = "anonymous";
+    im.onload = () => { try { const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight; const g = c.getContext("2d", { willReadFrequently: true });
+      g.drawImage(im, 0, 0); ok({ w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data }); } catch (e) { ok(null); } };
+    im.onerror = () => ok(null); im.src = src; }));
+}
+function snapBlank(P, xp, yp, tipo) { // xp, yp em % · devolve { x, w, yLine } em % ou null
+  if (!P) return null; const { w, h, d } = P, X = Math.round(xp / 100 * w), Y = Math.round(yp / 100 * h);
+  const lum = (x, y) => { if (x < 0 || y < 0 || x >= w || y >= h) return 255; const i = (y * w + x) * 4; return d[i + 3] < 100 ? 255 : d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; };
+  const dark = (x, y) => lum(x, y) < 170, edge = (x, y) => lum(x, y) < 205; // borda de quadradinho pode ser cinza-clara
+  const run = (y, x0) => { let a = x0, b = x0, gap = 0; for (let x = x0; x >= 0; x--) { if (dark(x, y)) { a = x; gap = 0; } else if (++gap > Math.max(2, w * .002)) break; }
+    gap = 0; for (let x = x0; x < w; x++) { if (dark(x, y)) { b = x; gap = 0; } else if (++gap > Math.max(2, w * .002)) break; } return [a, b]; };
+  if (tipo === "letra") { // quadradinho: procura as 4 bordas em volta do toque
+    const lim = Math.round(w * .05); let L = -1, Rr = -1, T = -1, B = -1;
+    for (let i = 1; i < lim; i++) { if (L < 0 && edge(X - i, Y)) L = X - i; if (Rr < 0 && edge(X + i, Y)) Rr = X + i; if (T < 0 && edge(X, Y - i)) T = Y - i; if (B < 0 && edge(X, Y + i)) B = Y + i; }
+    if (L >= 0 && Rr >= 0 && T >= 0 && B >= 0 && Rr - L > w * .008 && B - T > h * .004) return { x: (L + 2) / w * 100, w: (Rr - L - 3) / w * 100, yMid: (T + B) / 2 / h * 100, box: true };
+  }
+  // risquinho: a linha escura e fina mais perto do toque (procura um pouco abaixo e acima)
+  const span = Math.round(h * .025);
+  for (let k = 0; k <= span; k++) for (const y of [Y + k, Y - k]) {
+    let x0 = -1; for (let dx = 0; dx < w * .02 && x0 < 0; dx++) { if (dark(X + dx, y)) x0 = X + dx; else if (dark(X - dx, y)) x0 = X - dx; }
+    if (x0 < 0) continue; const [a, b] = run(y, x0), len = b - a;
+    if (len < w * .025 || len > w * .6) continue;
+    // tem que ser fina: 6 px acima e abaixo quase sem tinta (não é letra nem tabela)
+    let thick = 0; for (let x = a; x <= b; x += Math.max(1, Math.round(len / 40))) { if (dark(x, y - 4) && dark(x, y - 5)) thick++; }
+    if (thick > 10) continue;
+    return { x: a / w * 100, w: (b - a + 1) / w * 100, yLine: y / h * 100 };
+  }
+  return null;
+}
+// ---------- áudio: enviar arquivo ou gravar no painel
+async function uploadAudio(blob, ext) {
+  if (!PROD) { if (blob.size > 4e6) throw new Error("grande"); return await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); }); }
+  const path = `audio/${new Date().toISOString().slice(0, 7)}/${uid()}.${ext || "mp3"}`;
+  const { error } = await sb.storage.from("atividades").upload(path, blob, { contentType: (blob.type || "audio/mpeg").split(";")[0], upsert: false, cacheControl: "31536000" });
+  if (error) throw error; return sb.storage.from("atividades").getPublicUrl(path).data.publicUrl;
+}
+const isAudioUrl = u => /^data:audio\//.test(u || "") || /\/atividades\/audio\//.test(u || "") || /\.(mp3|m4a|aac|wav|ogg|oga|webm|opus)(\?|$)/i.test(u || "");
+function audioSlotHtml(key, label, url, hint) {
+  return `<div class="audslot" data-aud="${key}"><div class="top" style="align-items:center;gap:8px"><b style="font-weight:500">${label}</b>${hint ? `<span class="hint">${hint}</span>` : ""}</div>
+    ${url ? `<audio controls preload="none" src="${esc(url)}"></audio>` : ""}
+    <div class="btns" style="gap:6px"><label class="btn sm" style="cursor:pointer;flex-direction:row;color:var(--ink)">📤 ${url ? "Trocar arquivo" : "Enviar áudio"}<input type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg" data-audfile hidden></label>
+      <button type="button" class="btn sm" data-audrec>🎙 Gravar</button>${url ? `<button type="button" class="link danger" data-audrm>Tirar</button>` : ""}<span class="hint" data-audst></span></div></div>`;
+}
+let _rec = null;
+function bindAudioSlot(el, set) { // set(url) grava no item
+  const st = $("[data-audst]", el), say = t => { st.textContent = t; translate(st); };
+  const send = async (blob, ext) => { say("Enviando o áudio…"); try { set(await uploadAudio(blob, ext)); } catch (e) { say(e && e.message === "grande" ? "Na demonstração o áudio precisa ter menos de 4 MB." : PROD ? "Não consegui guardar o áudio. Confira se o supabase/imagens.sql (versão nova) já foi rodado." : "Não consegui abrir esse áudio."); } };
+  $("[data-audfile]", el).addEventListener("change", e => { const f = e.target.files[0]; if (f) send(f, (f.name.split(".").pop() || "mp3").toLowerCase()); });
+  const rm = $("[data-audrm]", el); if (rm) rm.addEventListener("click", () => set(""));
+  const rb = $("[data-audrec]", el);
+  rb.addEventListener("click", async () => {
+    if (_rec && _rec.el === el) { _rec.mr.stop(); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder) { say("Este navegador não grava áudio. Use 📤 Enviar áudio."); return; }
+    try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }), chunks = [];
+      const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg"].find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); _rec = { mr, el };
+      mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+      mr.onstop = () => { stream.getTracks().forEach(t => t.stop()); _rec = null; rb.textContent = "🎙 Gravar"; const type = mr.mimeType || mime || "audio/webm"; send(new Blob(chunks, { type }), /mp4/.test(type) ? "m4a" : /ogg/.test(type) ? "ogg" : "webm"); };
+      mr.start(); rb.textContent = "⏹ Parar gravação"; say("Gravando… fale perto do microfone."); }
+    catch (e) { say("Não consegui usar o microfone. Libere a permissão do navegador."); }
+  });
 }
 
 const ITEM_TYPES = [
@@ -1640,14 +1718,14 @@ function vAtividades() {
 const exHtml = i => i.ex ? `<div class="small" style="background:var(--soft);border-radius:8px;padding:8px 10px">💡 <span data-notr>${esc(i.ex)}</span></div>` : "";
 function itemPreview(i, n) {
   const head = `<div class="n">${TYPE_LABEL[i.t]} · ${n}</div>`;
-  if (i.t === "img") return `<div class="q">${head}${i.p ? `<div class="p">${esc(i.p)}</div>` : ""}${i.src ? imgPreviewHtml(i) : `<div class="hint">Sem imagem.</div>`}</div>`;
+  if (i.t === "img") return `<div class="q">${head}${i.p ? `<div class="p">${esc(i.p)}</div>` : ""}${i.audio ? `<div class="audplay"><span>🔊 Narração</span><audio controls preload="none" src="${esc(i.audio)}"></audio></div>` : ""}${i.audioResp ? `<div class="audplay"><span>🔊 Com respostas (depois de enviar)</span><audio controls preload="none" src="${esc(i.audioResp)}"></audio></div>` : ""}${i.src ? imgPreviewHtml(i) : `<div class="hint">Sem imagem.</div>`}</div>`;
   if (i.t === "mc") return `<div class="q">${head}<div class="p">${esc(i.p)}</div>${i.o.map((o, j) => `<div class="opt ${j === i.c ? "right" : ""}">${j === i.c ? "✓" : "·"} ${esc(o)}</div>`).join("")}${exHtml(i)}</div>`;
   if (i.t === "tf") return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="btns"><span class="opt ${i.v ? "right" : ""}">True</span><span class="opt ${!i.v ? "right" : ""}">False</span></div>${exHtml(i)}</div>`;
   if (i.t === "gap") return `<div class="q">${head}${i.bank ? `<div class="hint">Caixa de opções: o aluno escolhe numa lista.</div>` : ""}<div class="gapline" style="white-space:pre-wrap">${speakerBold(esc(i.p)).replace(/\[([^\]]*)\]/g, (m, x) => x.trim() ? `<b style="color:var(--ok)">${esc(x.split("|").join(" / "))}</b>` : `<b style="color:var(--bad)">[ ? ]</b>`)}</div></div>`;
   if (i.t === "match") return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="stack tight">${i.pairs.map(([l, r]) => `<div class="opt">${esc(l)} <span class="muted">→</span> <b style="font-weight:500">${esc(r)}</b></div>`).join("")}</div><div class="hint">O aluno vê a coluna da direita embaralhada.</div></div>`;
   if (i.t === "order") { const w = String(i.s).trim().split(/\s+/).filter(Boolean); return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="chips">${shuffleStable(w).map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div><div class="hint">Resposta: ${esc(i.s)}</div></div>`; }
   if (i.t === "write") return `<div class="q">${head}<div class="p">${esc(i.p)}</div><div class="hint">${i.min ? `Mínimo de ${i.min} palavras. ` : ""}Vai para a sua fila de correção.</div></div>`;
-  if (i.t === "media") return `<div class="q">${head}${i.p ? `<div class="p">${esc(i.p)}</div>` : ""}<a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">▶ Abrir áudio/vídeo</a></div>`;
+  if (i.t === "media") return `<div class="q">${head}${i.p ? `<div class="p">${esc(i.p)}</div>` : ""}${isAudioUrl(i.url) ? `<audio controls preload="none" src="${esc(i.url)}" style="width:100%"></audio>` : `<a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">▶ Abrir áudio/vídeo</a>`}</div>`;
   return "";
 }
 function shuffleStable(arr) { const a = arr.map((x, i) => [x, (i * 7919 + arr.length * 104729) % 97]); a.sort((p, q) => p[1] - q[1]); const out = a.map(x => x[0]); return out.join(" ") === arr.join(" ") && arr.length > 1 ? out.reverse() : out; }
@@ -1727,7 +1805,8 @@ function vEditor() {
     $$("#items [data-bank]").forEach(el => el.addEventListener("input", () => { const k = +el.dataset.bank, B = el.value.split("\n").map(x => x.replace(/^\s*\d{1,3}\s*[.)\-–]\s*/, "").trim()).filter(Boolean);
       if (B.length) st.itens[k].bank = B; else delete st.itens[k].bank; const ta = $(`[data-gapta="${k}"]`); if (ta && ta._gapRedraw) ta._gapRedraw(); summary(); }));
     $$("#items [data-c]").forEach(el => el.addEventListener("change", () => { st.itens[el.dataset.k].c = +el.dataset.c; summary(); }));
-    st.itens.forEach((it, k) => { if (it.t === "img") bindImgItem(k, st, summary, draw); });
+    st.itens.forEach((it, k) => { if (it.t === "img") bindImgItem(k, st, summary, draw);
+      if (it.t === "media") { const el = $(`[data-aud="med${k}"]`); if (el) bindAudioSlot(el, url => { it.url = url; const y = window.scrollY; draw(); window.scrollTo(0, y); }); } });
     $$("#items [data-tf]").forEach(el => el.addEventListener("click", () => { st.itens[el.dataset.k].v = el.dataset.tf === "1"; draw(); }));
     $$("#items [data-act]").forEach(el => el.addEventListener("click", () => { const k = +el.dataset.k, a = el.dataset.act, L = st.itens;
       if (a === "up" && k > 0) [L[k - 1], L[k]] = [L[k], L[k - 1]];
@@ -1762,7 +1841,8 @@ function vEditor() {
 }
 function cleanItem(i) { const o = JSON.parse(JSON.stringify(i)); if (o.t === "mc") { const keep = o.o.map((x, j) => [x.trim(), j]).filter(([x]) => x); o.c = Math.max(0, keep.findIndex(([, j]) => j === o.c)); o.o = keep.map(([x]) => x); }
   if (o.t === "match") o.pairs = o.pairs.filter(([l, r]) => l.trim() && r.trim());
-  if (o.t === "img") { o.banco = (o.banco || []).map(x => String(x).trim()).filter(Boolean); o.campos = (o.campos || []).map(f => ({ x: +f.x, y: +f.y, w: +f.w, tipo: f.tipo, resp: String(f.resp || "").trim() })); }
+  if (o.t === "img") { o.banco = (o.banco || []).map(x => String(x).trim()).filter(Boolean); o.campos = (o.campos || []).map(f => ({ x: +f.x, y: +f.y, w: +f.w, tipo: f.tipo, resp: String(f.resp || "").trim() }));
+    ["audio", "audioResp"].forEach(a => { if (!o[a]) delete o[a]; }); }
   if (o.t === "gap") { if (Array.isArray(o.bank)) o.bank = o.bank.map(x => String(x).trim()).filter(Boolean); if (!o.bank || !o.bank.length) delete o.bank; }
   if ("ex" in o) { o.ex = String(o.ex || "").trim(); if (!o.ex) delete o.ex; } return o; }
 function problems(items) {
@@ -1812,7 +1892,8 @@ function itemEditor(i, k, total) {
     <div class="stack tight"><span class="hint">O aluno vê assim:</span><div class="chips" data-orderpv="${k}">${shuffleStable(String(i.s).trim().split(/\s+/).filter(Boolean)).map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div></div>`;
   if (i.t === "write") body = `<label>Proposta de escrita<textarea class="grow big" data-f="p" data-k="${k}" placeholder="Ex.: Write 5 sentences about your weekend.">${esc(i.p)}</textarea></label>
     <label style="max-width:200px">Mínimo de palavras<input type="number" min="0" data-f="min" data-k="${k}" value="${i.min || 0}"></label>`;
-  if (i.t === "media") body = `<label>Link do áudio ou vídeo (YouTube, Drive, Spotify…)<input data-f="url" data-k="${k}" value="${esc(i.url)}" placeholder="https://"></label>
+  if (i.t === "media") body = `${audioSlotHtml(`med${k}`, "🔊 Áudio", isAudioUrl(i.url) ? i.url : "", "envie o arquivo ou grave")}
+    <label>Ou cole um link (YouTube, Drive, Spotify…)<input data-f="url" data-k="${k}" value="${esc(/^data:/.test(i.url || "") ? "" : i.url)}" placeholder="https://"></label>
     <label>Legenda ou instrução<textarea class="grow" rows="1" data-f="p" data-k="${k}" placeholder="Ex.: Listen and answer the questions below.">${esc(i.p)}</textarea></label>`;
   if (i.t === "img") body = `<label>Instrução <span class="hint">(opcional)</span><textarea class="grow" rows="1" data-f="p" data-k="${k}" placeholder="Ex.: Complete the exercises on the sheet.">${esc(i.p || "")}</textarea></label>${imgEditorHtml(i, k)}`;
   return `<section class="q" data-qk="${k}">${head}${body}</section>`;
@@ -3043,7 +3124,7 @@ function vPortalAtv() {
   const g = done ? gradeFull(t, e.respostas || {}) : null;
   const body = t.itens.map((i, k) => {
     if (i.t === "info") return infoHtml(i.p);
-    if (i.t === "media") return `<a class="btn" href="${esc(i.url)}" target="_blank" rel="noopener">▶ ${i.p ? `<span data-notr>${esc(i.p)}</span>` : "Abrir áudio/vídeo"}</a>`;
+    if (i.t === "media") return isAudioUrl(i.url) ? `<div class="audplay">${i.p ? `<span data-notr>${esc(i.p)}</span>` : `<span>🔊 Ouça</span>`}<audio controls preload="none" src="${esc(i.url)}"></audio></div>` : `<a class="btn" href="${esc(i.url)}" target="_blank" rel="noopener">▶ ${i.p ? `<span data-notr>${esc(i.p)}</span>` : "Abrir áudio/vídeo"}</a>`;
     n++; const head = `<div class="n">Question ${n}</div>`, R = e.respostas || {};
     if (i.t === "mc") return `<fieldset class="q" style="margin:0">${head}<legend class="sr" style="position:absolute;left:-9999px">Question ${n}</legend><div class="p" data-notr>${esc(i.p)}</div>${i.o.map((o, j) => `<label class="opt ${done ? (j === i.c ? "right" : R[k] === j ? "wrong" : "") : ""}" style="flex-direction:row;cursor:pointer"><input type="radio" name="q${k}" value="${j}" ${done ? "disabled" : ""} ${R[k] === j ? "checked" : ""} style="width:auto;accent-color:var(--accent)"> <span data-notr>${esc(o)}</span></label>`).join("")}${done && R[k] !== i.c ? exHtml(i) : ""}</fieldset>`;
     if (i.t === "tf") return `<div class="q">${head}<div class="p" data-notr>${esc(i.p)}</div><div class="btns">${[true, false].map(v => `<button type="button" class="opt ${done ? (v === i.v ? "right" : R[k] === v ? "wrong" : "") : ""}" data-tf="${k}" data-v="${v}" aria-pressed="${R[k] === v}" ${done ? "disabled" : ""}>${v ? "True" : "False"}</button>`).join("")}</div>${done && R[k] !== i.v ? exHtml(i) : ""}</div>`;
