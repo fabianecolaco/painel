@@ -6,7 +6,7 @@
 --  • O aluno nunca lê a tabela "painel". Ele só chama duas funções,
 --    portal_get e portal_post, que exigem o link (token) + PIN de 4 números.
 --  • portal_get devolve só o que é dele: atividades, notas, aulas,
---    mensalidades, assuntos marcados como visíveis e a gramática liberada para ele. Nada de observações
+--    mensalidades (menos para aluno menor de idade), assuntos e recados marcados como visíveis e a gramática liberada para ele. Nada de observações
 --    privadas, telefones, anotações do diário ou dados de outros alunos.
 --  • Reposição: o aluno pede quantas quiser enquanto tiver saldo (ajuste + faltas − reposições),
 --    com a antecedência mínima de Ajustes (padrão 3 horas);
@@ -71,11 +71,14 @@ begin
   env := coalesce((select jsonb_agg(e) from jsonb_array_elements(coalesce(d->'envios', '[]')) e where e->>'aluno' = aid), '[]');
 
   return jsonb_build_object(
-    'aluno', au.o_aluno - array['obs_privada', 'pin', 'tel1', 'tel2', 'resp_nome', 'resp_tel', 'origem', 'indicado_por'],
+    'aluno', au.o_aluno - array['obs_privada', 'pin', 'tel1', 'tel2', 'resp_nome', 'resp_tel', 'origem', 'indicado_por']
+                        - (case when coalesce(au.o_aluno->>'menor', 'false') = 'true' then 'cobranca' else '' end),
     'envios', env,
     'atividades', coalesce((select jsonb_agg(t) from jsonb_array_elements(coalesce(d->'atividades', '[]')) t
                              where exists (select 1 from jsonb_array_elements(env) e where e->>'atividade' = t->>'id')), '[]'),
-    'mensalidades', coalesce((select jsonb_agg(m) from jsonb_array_elements(coalesce(d->'mensalidades', '[]')) m where m->>'aluno' = aid), '[]'),
+    -- aluno menor de idade: a mensalidade não vai para a página dele
+    'mensalidades', case when coalesce(au.o_aluno->>'menor', 'false') = 'true' then '[]'::jsonb
+                    else coalesce((select jsonb_agg(m) from jsonb_array_elements(coalesce(d->'mensalidades', '[]')) m where m->>'aluno' = aid), '[]') end,
     'eventos', coalesce((select jsonb_agg(e - 'obs') from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' = aid), '[]'),
     'aulas_publicas', coalesce((select jsonb_agg(x - 'notas') from jsonb_array_elements(coalesce(d->'diario', '[]')) x
                                  where x->>'aluno' = aid and x->>'mostrar' = 'true'), '[]'),

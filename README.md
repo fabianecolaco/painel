@@ -172,3 +172,16 @@ Como funciona:
 - **Dupla (azul pontilhado) só para dupla de verdade:** duas aulas fixas no mesmo horário, ou uma reposição/aula extra em que ela escolheu "👥 Dupla de alunos". Se uma reposição caiu em cima de outra aula sem ser dupla, ela fica com contorno vermelho tracejado e "⚠ junto com…". Dá para tirar o pontilhado em "Não é dupla".
 - **Excluir reposição ou aula extra:** botão vermelho "🗑 Excluir" na tela da aula (antes ficava escondido em "Mais opções").
 
+
+## Novidades (26/out/2026)
+
+> **Depois de subir os arquivos, rode o `supabase/portal.sql` de novo** (SQL Editor → New query → cole tudo → Run). Ele esconde a mensalidade dos alunos menores de idade e leva o recado do diário para a página do aluno. Pode rodar quantas vezes quiser; não apaga dados.
+
+- **Agenda nova, com três jeitos de ver:**
+  - **Semana** (abre assim): cada dia numa coluna, só com as aulas, sem os blocos verdes. Os horários livres ficam numa linha no fim do dia.
+  - **Dia**: toque no nome do dia (ou em "Dia"). Mostra as aulas grandes, os horários livres (toque para marcar reposição ou extra) e o botão do relatório em cada aula.
+  - **Grade**: a grade de antes, mais limpa, para arrastar aulas e mudar a duração.
+- **Status do relatório em cada aula:** bolinha verde = relatório (diário) feito, amarela = a aula já passou e falta o relatório, vazia = aula futura. No topo, "N relatórios pendentes" abre a lista para preencher.
+- **Alunos:** "Precisam de atividade" virou uma linha recolhida; toque em "Ver quem" para abrir. O botão **Alunos inativos** (ao lado de Avisos) mostra só quem está pausado; a lista principal mostra só os ativos.
+- **Menor de idade:** nova caixa no cadastro (Editar dados → Contato). Para o aluno menor, a mensalidade não aparece na página dele.
+- **Diário de aula:** novo campo **Recado para o aluno**. O assunto e o recado aparecem no **Diário de aulas** da página do aluno (logo abaixo de "Para fazer"). "O que foi falado" continua só para a Fabi.
