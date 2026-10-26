@@ -11,7 +11,7 @@
 --  • Reposição: o aluno pede quantas quiser enquanto tiver saldo (ajuste + faltas − reposições),
 --    com a antecedência mínima de Ajustes (padrão 3 horas);
 --    o pedido reserva o horário e a Fabi aceita ou recusa no painel (recusada devolve o crédito).
---  • O que o aluno faz (respostas, tema da página, reposição) vai para a
+--  • O que o aluno faz (respostas, tema da página, reposição, prática de vocabulário) vai para a
 --    caixa "portal_inbox". O painel da Fabi busca essa caixa, aplica e apaga.
 --  • 8 PINs errados em 15 minutos bloqueiam o link por 15 minutos.
 -- =====================================================================
@@ -20,10 +20,13 @@ create table if not exists public.portal_inbox (
   id       bigserial primary key,
   owner    uuid not null references auth.users(id) on delete cascade,
   aluno_id text not null,
-  tipo     text not null check (tipo in ('envio', 'tema', 'reposicao')),
+  tipo     text not null check (tipo in ('envio', 'tema', 'reposicao', 'vocab')),
   payload  jsonb not null,
   criado   timestamptz not null default now()
 );
+-- libera o tipo 'vocab' (prática de vocabulário) em bancos criados antes
+alter table public.portal_inbox drop constraint if exists portal_inbox_tipo_check;
+alter table public.portal_inbox add constraint portal_inbox_tipo_check check (tipo in ('envio', 'tema', 'reposicao', 'vocab'));
 create index if not exists portal_inbox_owner on public.portal_inbox (owner, aluno_id);
 alter table public.portal_inbox enable row level security;
 drop policy if exists "dona le inbox" on public.portal_inbox;
@@ -98,6 +101,8 @@ begin
       'antecedencia_h', case when jsonb_typeof(d#>'{ajustes,antecedencia_h}') = 'number' then greatest(0, least(168, (d#>>'{ajustes,antecedencia_h}')::numeric))::int else 3 end),
     'gramatica', coalesce((select jsonb_agg(g - 'liberado') from jsonb_array_elements(coalesce(d->'gramatica', '[]')) g
                             where coalesce(g->'liberado', '[]') ? aid), '[]'),
+    'vocab', coalesce((select jsonb_agg(v - 'liberado') from jsonb_array_elements(coalesce(d->'vocab', '[]')) v
+                        where coalesce(v->'liberado', '[]') ? aid), '[]'),
     'avisos', coalesce((select jsonb_agg(jsonb_build_object('id', v->'id', 'texto', v->'texto', 'criado', v->'criado'))
                           from jsonb_array_elements(coalesce(d->'avisos', '[]')) v
                          where (v->>'alvo' = 'todos' or v->>'alvo' = aid)
@@ -204,6 +209,18 @@ begin
 
     insert into portal_inbox (owner, aluno_id, tipo, payload)
     values (au.o_owner, aid, 'reposicao', jsonb_build_object('ref', ref, 'data', dt::text, 'hora', to_char(hr, 'HH24:MI'), 'dur', du));
+  elsif p_tipo = 'vocab' then
+    -- prática de vocabulário: só de um conjunto liberado para este aluno
+    if not exists (select 1 from jsonb_array_elements(coalesce(d->'vocab', '[]')) v
+                    where v->>'id' = p_payload->>'set' and coalesce(v->'liberado', '[]') ? aid) then
+      return '{"erro":"vocab"}';
+    end if;
+    insert into portal_inbox (owner, aluno_id, tipo, payload)
+    values (au.o_owner, aid, 'vocab', jsonb_build_object(
+      'set', p_payload->>'set',
+      'modo', case when p_payload->>'modo' in ('flash', 'quiz', 'listen', 'match') then p_payload->>'modo' else 'quiz' end,
+      'acertos', case when coalesce(p_payload->>'acertos', '') ~ '^\d{1,3}$' then (p_payload->>'acertos')::int else 0 end,
+      'total', case when coalesce(p_payload->>'total', '') ~ '^\d{1,3}$' then (p_payload->>'total')::int else 0 end));
   else
     return '{"erro":"tipo"}';
   end if;

@@ -185,3 +185,15 @@ Como funciona:
 - **Alunos:** "Precisam de atividade" virou uma linha recolhida; toque em "Ver quem" para abrir. O botão **Alunos inativos** (ao lado de Avisos) mostra só quem está pausado; a lista principal mostra só os ativos.
 - **Menor de idade:** nova caixa no cadastro (Editar dados → Contato). Para o aluno menor, a mensalidade não aparece na página dele.
 - **Diário de aula:** novo campo **Recado para o aluno**. O assunto e o recado aparecem no **Diário de aulas** da página do aluno (logo abaixo de "Para fazer"). "O que foi falado" continua só para a Fabi.
+
+## Novidades · Biblioteca (26/out/2026)
+
+> **Rode o `supabase/portal.sql` de novo** depois de subir. Ele leva o vocabulário liberado para a página do aluno e traz de volta o resultado de cada prática. Suba também a pasta **`vocab`** (as figuras do piloto).
+
+- **Aba Biblioteca** no lugar de Atividades e Gramática, com três partes: **Vocabulary** (novo), **Content** (a Gramática de antes) e **Exercises** (as atividades de antes).
+- **Vocabulary:** cada conjunto tem título, nível, tema e parte, e as palavras (inglês, português, figura e áudio). Dá para colar uma lista inteira de uma vez ("School - Escola", uma por linha).
+- **Jogos gerados sozinhos** a partir das palavras: **Flashcards**, **What is this place?** (figura → 3 opções), **Listen and choose** (ouve → toca na figura) e **Match** (liga figura e palavra). As opções embaralham a cada vez.
+- **Áudio:** cada palavra aceita um arquivo de áudio. Sem áudio, o aluno ouve uma voz provisória do próprio aparelho.
+- **Liberar:** igual à Gramática. O aluno só vê o que foi liberado para ele, na seção **Vocabulário** da página dele.
+- **Resultados:** cada jogo terminado chega no painel (sino e "Práticas dos alunos" no vocabulário). Para aluno **menor de idade**, o resultado aparece em estrelas em vez de nota.
+- **Piloto:** botão "Criar o piloto Essential Places" com as 10 palavras e as figuras do card da Fabi.
