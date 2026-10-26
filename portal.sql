@@ -103,6 +103,8 @@ begin
                             where coalesce(g->'liberado', '[]') ? aid), '[]'),
     'vocab', coalesce((select jsonb_agg(v - 'liberado') from jsonb_array_elements(coalesce(d->'vocab', '[]')) v
                         where coalesce(v->'liberado', '[]') ? aid), '[]'),
+    'vocab_res', coalesce((select jsonb_agg(jsonb_build_object('set', r->'set', 'modo', r->'modo', 'acertos', r->'acertos', 'total', r->'total'))
+                            from jsonb_array_elements(coalesce(d->'vocab_res', '[]')) r where r->>'aluno' = aid), '[]'),
     'avisos', coalesce((select jsonb_agg(jsonb_build_object('id', v->'id', 'texto', v->'texto', 'criado', v->'criado'))
                           from jsonb_array_elements(coalesce(d->'avisos', '[]')) v
                          where (v->>'alvo' = 'todos' or v->>'alvo' = aid)
@@ -214,6 +216,13 @@ begin
     if not exists (select 1 from jsonb_array_elements(coalesce(d->'vocab', '[]')) v
                     where v->>'id' = p_payload->>'set' and coalesce(v->'liberado', '[]') ? aid) then
       return '{"erro":"vocab"}';
+    end if;
+    -- só a primeira vez de cada jogo conta; as outras são treino
+    if exists (select 1 from jsonb_array_elements(coalesce(d->'vocab_res', '[]')) r
+                where r->>'aluno' = aid and r->>'set' = p_payload->>'set' and r->>'modo' = p_payload->>'modo')
+       or exists (select 1 from portal_inbox i where i.owner = au.o_owner and i.aluno_id = aid and i.tipo = 'vocab'
+                   and i.payload->>'set' = p_payload->>'set' and i.payload->>'modo' = p_payload->>'modo') then
+      return '{"ok":true,"treino":true}';
     end if;
     insert into portal_inbox (owner, aluno_id, tipo, payload)
     values (au.o_owner, aid, 'vocab', jsonb_build_object(
