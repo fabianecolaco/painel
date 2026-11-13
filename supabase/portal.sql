@@ -5,11 +5,15 @@
 -- Como funciona:
 --  • O aluno nunca lê a tabela "painel". Ele só chama duas funções,
 --    portal_get e portal_post, que exigem o link (token) + PIN de 4 números.
---  • portal_get devolve só o que é dele: atividades, notas, aulas,
---    mensalidades (menos para aluno menor de idade), assuntos e recados marcados como visíveis e a gramática liberada para ele. Nada de observações
---    privadas, telefones, anotações do diário ou dados de outros alunos.
+--  • portal_get devolve só o que é dele: atividades, notas, aulas (inclusive a aula experimental),
+--    mensalidades (menos para aluno menor de idade e aluno experimental), assuntos e recados marcados
+--    como visíveis e a gramática liberada para ele. Nada de observações privadas, telefones,
+--    anotações do diário, bloqueios da agenda da Fabi (título/observação) ou dados de outros alunos.
+--  • Bloqueios da agenda (compromissos da Fabi) e aulas experimentais ficam dentro de painel.dados,
+--    como o resto do painel: não precisam de tabela nem coluna nova. Este arquivo só atualiza as funções
+--    (create or replace), então pode rodar de novo quantas vezes quiser sem apagar nada.
 --  • Reposição: o aluno pede quantas quiser enquanto tiver saldo (ajuste + faltas − reposições),
---    com a antecedência mínima de Ajustes (padrão 3 horas);
+--    com a antecedência mínima de Ajustes (padrão 3 horas), fora das aulas e dos horários bloqueados;
 --    o pedido reserva o horário e a Fabi aceita ou recusa no painel (recusada devolve o crédito).
 --  • O que o aluno faz (respostas, tema da página, reposição, prática de vocabulário) vai para a
 --    caixa "portal_inbox". O painel da Fabi busca essa caixa, aplica e apaga.
@@ -75,12 +79,12 @@ begin
 
   return jsonb_build_object(
     'aluno', au.o_aluno - array['obs_privada', 'pin', 'tel1', 'tel2', 'resp_nome', 'resp_tel', 'origem', 'indicado_por']
-                        - (case when coalesce(au.o_aluno->>'menor', 'false') = 'true' then 'cobranca' else '' end),
+                        - (case when coalesce(au.o_aluno->>'menor', 'false') = 'true' or coalesce(au.o_aluno->>'experimental', 'false') = 'true' then 'cobranca' else '' end),
     'envios', env,
     'atividades', coalesce((select jsonb_agg(t) from jsonb_array_elements(coalesce(d->'atividades', '[]')) t
                              where exists (select 1 from jsonb_array_elements(env) e where e->>'atividade' = t->>'id')), '[]'),
-    -- aluno menor de idade: a mensalidade não vai para a página dele
-    'mensalidades', case when coalesce(au.o_aluno->>'menor', 'false') = 'true' then '[]'::jsonb
+    -- aluno menor de idade ou em aula experimental: a mensalidade não vai para a página dele
+    'mensalidades', case when coalesce(au.o_aluno->>'menor', 'false') = 'true' or coalesce(au.o_aluno->>'experimental', 'false') = 'true' then '[]'::jsonb
                     else coalesce((select jsonb_agg(m) from jsonb_array_elements(coalesce(d->'mensalidades', '[]')) m where m->>'aluno' = aid), '[]') end,
     'eventos', coalesce((select jsonb_agg(e - 'obs') from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' = aid), '[]'),
     'aulas_publicas', coalesce((select jsonb_agg(x - 'notas') from jsonb_array_elements(coalesce(d->'diario', '[]')) x
@@ -93,7 +97,12 @@ begin
             from jsonb_array_elements(coalesce(d->'eventos', '[]')) e where e->>'aluno' <> aid and coalesce(e->>'hora', '') <> '' and coalesce(e->>'aprovacao', '') <> 'recusada'
           union all
           select jsonb_build_object('aluno', 'o' || md5(i.aluno_id), 'data', i.payload->'data', 'hora', i.payload->'hora', 'dur', i.payload->'dur', 'tipo', 'reposicao')
-            from portal_inbox i where i.owner = au.o_owner and i.tipo = 'reposicao' and i.aluno_id <> aid) q), '[]')),
+            from portal_inbox i where i.owner = au.o_owner and i.tipo = 'reposicao' and i.aluno_id <> aid) q), '[]'),
+      -- bloqueios da Fabi: só o horário, sem título nem observação (o aluno não vê o bloqueio, só não pode marcar em cima)
+      'bloqueios', coalesce((select jsonb_agg(jsonb_build_object('data', b->'data', 'inicio', b->'inicio', 'fim', b->'fim', 'dia_todo', b->'dia_todo',
+                                                                 'repetir', b->'repetir', 'ate', b->'ate', 'pular', b->'pular'))
+                               from jsonb_array_elements(coalesce(d->'bloqueios', '[]')) b
+                              where coalesce(b->>'repetir', '') = 'semanal' or coalesce(b->>'data', '') >= to_char((now() at time zone 'America/Sao_Paulo')::date - 1, 'YYYY-MM-DD')), '[]')),
     'ajustes', jsonb_build_object(
       'pix_chave', d#>'{ajustes,pix_chave}', 'pix_nome', d#>'{ajustes,pix_nome}', 'pix_cidade', d#>'{ajustes,pix_cidade}',
       'telefone', d#>'{ajustes,telefone}', 'obrigado', d#>'{ajustes,obrigado}', 'passo', d#>'{ajustes,passo}',
@@ -199,10 +208,28 @@ begin
                             where x->>'aluno' = a->>'id' and x->>'data' = dt::text and x->>'hora' = s->>'hora' and x->>'tipo' in ('falta', 'cancelada'))
         union all
         select (x->>'hora')::time, coalesce((x->>'dur')::int, 60) from jsonb_array_elements(coalesce(d->'eventos', '[]')) x
-         where x->>'data' = dt::text and x->>'tipo' in ('reposicao', 'extra') and coalesce(x->>'hora', '') ~ '^\d{1,2}:\d{2}' and coalesce(x->>'aprovacao', '') <> 'recusada'
+         where x->>'data' = dt::text and x->>'tipo' in ('reposicao', 'extra', 'experimental') and coalesce(x->>'hora', '') ~ '^\d{1,2}:\d{2}' and coalesce(x->>'aprovacao', '') <> 'recusada'
         union all
         select (i.payload->>'hora')::time, coalesce((i.payload->>'dur')::int, 60) from portal_inbox i
-         where i.owner = au.o_owner and i.tipo = 'reposicao' and i.payload->>'data' = dt::text)
+         where i.owner = au.o_owner and i.tipo = 'reposicao' and i.payload->>'data' = dt::text
+        union all
+        -- bloqueios da Fabi nesse dia (uma vez ou toda semana, menos os dias que ela liberou)
+        -- (cada conversão confere o formato antes, porque o Postgres pode calcular estas colunas antes do filtro)
+        select case when coalesce(b->>'dia_todo', 'false') = 'true' then time '00:00'
+                    when coalesce(b->>'inicio', '') ~ '^([01]?\d|2[0-3]):[0-5]\d$' then (b->>'inicio')::time end,
+               case when coalesce(b->>'dia_todo', 'false') = 'true' then 1440
+                    when coalesce(b->>'inicio', '') ~ '^([01]?\d|2[0-3]):[0-5]\d$' and coalesce(b->>'fim', '') ~ '^([01]?\d|2[0-3]):[0-5]\d$'
+                    then ((extract(epoch from (b->>'fim')::time) - extract(epoch from (b->>'inicio')::time)) / 60)::int end
+          from jsonb_array_elements(coalesce(d->'bloqueios', '[]')) b
+         where case -- em "case" a ordem é garantida: só converte a data depois de conferir o formato
+                 when coalesce(b->>'data', '') !~ '^\d{4}-\d{2}-\d{2}$' then false
+                 when coalesce(b->'pular', '[]') ? dt::text then false
+                 when coalesce(b->>'dia_todo', 'false') <> 'true'
+                      and not (coalesce(b->>'inicio', '') ~ '^([01]?\d|2[0-3]):[0-5]\d$' and coalesce(b->>'fim', '') ~ '^([01]?\d|2[0-3]):[0-5]\d$') then false
+                 when coalesce(b->>'repetir', '') = 'semanal'
+                      then b->>'data' <= dt::text and extract(dow from to_date(b->>'data', 'YYYY-MM-DD')) = dow
+                           and (coalesce(b->>'ate', '') = '' or b->>'ate' >= dt::text)
+                 else b->>'data' = dt::text end)
       select 1 from busy
        where extract(epoch from h) / 60 < extract(epoch from hr) / 60 + du
          and extract(epoch from h) / 60 + m > extract(epoch from hr) / 60) then
