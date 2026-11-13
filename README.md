@@ -197,3 +197,14 @@ Como funciona:
 - **Liberar:** igual à Gramática. O aluno só vê o que foi liberado para ele, na seção **Vocabulário** da página dele.
 - **Resultados:** cada jogo terminado chega no painel (sino e "Práticas dos alunos" no vocabulário). Para aluno **menor de idade**, o resultado aparece em estrelas em vez de nota.
 - **Piloto:** botão "Criar o piloto Essential Places" com as 10 palavras e as figuras do card da Fabi.
+
+## Novidades · Aula experimental e bloqueio de agenda (13/nov/2026)
+
+> **Rode o `supabase/portal.sql` de novo** depois de subir. Não cria tabela nem coluna nova (bloqueios e aulas experimentais ficam em `painel.dados`, como o resto do painel); ele só atualiza as funções da página do aluno. Pode rodar quantas vezes quiser.
+
+- **Aula experimental:** toque num horário vazio da agenda → **✦ Experimental**. Serve para um aluno já cadastrado ou para uma pessoa nova (marque "É uma pessoa nova" e escreva o nome). Aparece em lilás com ✦ nas visões Semana, Dia e Grade e **não entra na mensalidade nem na cobrança**. Também dá para marcar pelo perfil do aluno (+ Aula avulsa).
+- **Aluno experimental:** no cadastro, **Situação: Ativo / ✦ Experimental / Inativo**. O aluno experimental aparece na agenda, fica fora do financeiro e a página dele não mostra mensalidade. Quando fechar, use **✓ Tornar aluno ativo** (no perfil ou na aula): o cadastro é o mesmo, então diário, atividades e aulas continuam no histórico.
+- **Bloquear horário:** botão **🔒 Bloquear horário** na agenda (ou "Bloquear este horário" ao tocar num horário vazio). Título, data, começo e fim, **dia inteiro**, **repetir toda semana** (com data final opcional) e observação. Aparece com listras cinza nas três visões.
+- **Editar e excluir:** toque no 🔒 na agenda. Bloqueio semanal pode ser liberado **só em um dia** ou excluído inteiro. A lista "Seus bloqueios" fica no botão 🔒 Bloquear horário.
+- **Aviso:** marcar, remarcar ou arrastar uma aula para cima de um bloqueio mostra "Esse horário está bloqueado" com **Marcar mesmo assim** ou **Voltar**. O horário bloqueado sai dos horários livres.
+- **Aluno:** não vê o bloqueio (nem título, nem observação). O horário só deixa de aparecer como opção quando ele marca reposição, e o servidor também recusa.
